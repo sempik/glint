@@ -24,6 +24,8 @@ public partial class PillWindow : Window, IPillNotifier
     const double FlashWidth = 380, FlashHeight = 56, FlashCompactHeight = 44;
     const double PanelWidth = 680, PanelHeight = 400;
     const double WindowWidth = 720, WindowHeight = 470;
+    // Collapsed pill plus the Shell's top (8) and bottom (30, room for the shadow) margins.
+    const double CompactHeight = PillHeight + 38;
 
     static int s_openMenus;
     static int s_modalDepth;
@@ -60,6 +62,11 @@ public partial class PillWindow : Window, IPillNotifier
     FlashMessage? _currentImportant;
 
     sealed record FlashMessage(string Title, string? Subtitle, string Glyph, TimeSpan? Duration, DateTime At);
+
+    double _scale = 1;
+    bool _compact = true;
+    int _shellAnimation;
+    bool? _equalizerRunning;
 
     static PillWindow()
     {
@@ -137,11 +144,32 @@ public partial class PillWindow : Window, IPillNotifier
         if (work.Width > 0 && work.Height > 0)
             scale = Math.Max(0.5, Math.Min(scale, Math.Min(work.Width / WindowWidth, work.Height / WindowHeight)));
         RootScale.ScaleX = RootScale.ScaleY = scale;
-        Width = WindowWidth * scale;
-        Height = WindowHeight * scale;
+        // The cached surface sits under RootScale; render it at the final size so the stroke stays crisp.
+        ShellCache.RenderAtScale = scale * VisualTreeHelper.GetDpi(this).DpiScaleX;
+        _scale = scale;
+        ApplyWindowSize();
+        _hoverIn.Interval = TimeSpan.FromMilliseconds(Math.Max(0, AppServices.Settings.Current.HoverDelayMs));
+    }
+
+    /// <summary>
+    /// Rendering is software-only and a layered window re-uploads its whole surface on every frame, so a
+    /// resting pill keeps the window only as tall as itself; the panel, flashes and animations get the full height.
+    /// Only the height changes: a layered window shows its previous bitmap until the next frame, so moving its
+    /// origin would make the pill jump for a frame, while growing or shrinking downward leaves it in place.
+    /// </summary>
+    void ApplyWindowSize()
+    {
+        Width = WindowWidth * _scale;
+        Height = (_compact ? CompactHeight : WindowHeight) * _scale;
         Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
         Top = 0;
-        _hoverIn.Interval = TimeSpan.FromMilliseconds(Math.Max(0, AppServices.Settings.Current.HoverDelayMs));
+    }
+
+    void SetCompact(bool compact)
+    {
+        if (compact == _compact) return;
+        _compact = compact;
+        ApplyWindowSize();
     }
 
     // ───────────── Tabs ─────────────
@@ -260,7 +288,12 @@ public partial class PillWindow : Window, IPillNotifier
     {
         var duration = TimeSpan.FromMilliseconds(340);
         var ease = new BackEase { Amplitude = 0.22, EasingMode = EasingMode.EaseOut };
-        Shell.BeginAnimation(WidthProperty, new DoubleAnimation(width, duration) { EasingFunction = ease });
+        SetCompact(false);
+        var generation = ++_shellAnimation;
+        var widthAnim = new DoubleAnimation(width, duration) { EasingFunction = ease };
+        // Shrink back only after the last animation settles on the plain pill (the pill's fade-in ends earlier).
+        widthAnim.Completed += (_, _) => { if (generation == _shellAnimation && _state == State.Pill) SetCompact(true); };
+        Shell.BeginAnimation(WidthProperty, widthAnim);
         Shell.BeginAnimation(HeightProperty, new DoubleAnimation(height, duration) { EasingFunction = ease });
     }
 
@@ -442,6 +475,9 @@ public partial class PillWindow : Window, IPillNotifier
 
     void SetEqualizerRunning(bool running)
     {
+        // Media events arrive often (timeline updates); restarting the animations each time is wasted work.
+        if (_equalizerRunning == running) return;
+        _equalizerRunning = running;
         double[] periods = { 420, 310, 520, 370 };
         for (var i = 0; i < _bars.Count; i++)
         {
@@ -489,7 +525,8 @@ public partial class PillWindow : Window, IPillNotifier
         }
 
         Equalizer.Visibility = _hasMedia ? Visibility.Visible : Visibility.Collapsed;
-        SetEqualizerRunning(media?.IsPlaying == true || audibleOnly);
+        // Nobody sees it while the pill is hidden over a fullscreen app, so don't spend frames on it.
+        SetEqualizerRunning((media?.IsPlaying == true || audibleOnly) && !_hiddenByRule);
 
         if (_state == State.Pill && hadMedia != _hasMedia) AnimateShell(CurrentPillWidth, PillHeight);
     }
@@ -570,6 +607,7 @@ public partial class PillWindow : Window, IPillNotifier
             EndFlash();
         }
         Root.Visibility = hide ? Visibility.Hidden : Visibility.Visible;
+        UpdateMedia();
         // Reminders that fired while hidden are shown as soon as the pill is back.
         if (!hide && _state == State.Pill) TryShowQueued();
     }

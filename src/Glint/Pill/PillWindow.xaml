@@ -17,15 +17,33 @@
             <ScaleTransform x:Name="RootScale" ScaleX="1" ScaleY="1"/>
         </Grid.LayoutTransform>
 
+        <!--
+            Surface, stroke and shadow live on their own cached layer that follows Shell's size. Rendering is
+            software-only, and with the blur on Shell itself every tick of the equalizer or the progress bar
+            re-blurred the whole panel on the CPU; now the blur is redone only when the size changes.
+        -->
+        <!-- The cache sits on a wrapper so the blurred shadow is part of the cached bitmap. -->
+        <Grid IsHitTestVisible="False" Margin="20,8,20,30" VerticalAlignment="Top" HorizontalAlignment="Center">
+            <Grid.CacheMode>
+                <BitmapCache x:Name="ShellCache" SnapsToDevicePixels="True"/>
+            </Grid.CacheMode>
+            <Border x:Name="ShellBackground"
+                    Width="{Binding Width, ElementName=Shell}" Height="{Binding Height, ElementName=Shell}"
+                    CornerRadius="{Binding CornerRadius, ElementName=Shell}"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource AccentStrokeBrush}" BorderThickness="1">
+                <Border.Effect>
+                    <DropShadowEffect x:Name="ShellShadow" BlurRadius="26" ShadowDepth="6" Direction="270" Opacity="0.45" Color="#000000"/>
+                </Border.Effect>
+            </Border>
+        </Grid>
+
+        <!-- Transparent (not null) background keeps the whole shell hit-testable for hover and drops. -->
         <Border x:Name="Shell"
                 Width="200" Height="36" CornerRadius="18"
                 Margin="20,8,20,30"
                 VerticalAlignment="Top" HorizontalAlignment="Center"
-                Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource AccentStrokeBrush}" BorderThickness="1">
-            <Border.Effect>
-                <DropShadowEffect x:Name="ShellShadow" BlurRadius="26" ShadowDepth="6" Direction="270" Opacity="0.45" Color="#000000"/>
-            </Border.Effect>
+                Background="Transparent" BorderThickness="1">
 
             <Grid>
                 <!-- Collapsed pill: indicator · clock · equalizer -->

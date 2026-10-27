@@ -10,7 +10,7 @@ namespace Glint.Services;
 /// </summary>
 public sealed class AudioActivity : IDisposable
 {
-    static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(400);
+    static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(1);
     // Music has quiet passages and gaps between tracks; don't flicker the indicator on every one.
     static readonly TimeSpan Hold = TimeSpan.FromSeconds(2);
     static readonly TimeSpan Rebind = TimeSpan.FromSeconds(10);
@@ -27,6 +27,8 @@ public sealed class AudioActivity : IDisposable
     string? _app;
     bool _disposed;
     int _polling;
+    uint _namePid;
+    string? _name;
 
     /// <summary>Raised on a pool thread when <see cref="AudibleApp"/> changes.</summary>
     public event EventHandler? Changed;
@@ -50,7 +52,8 @@ public sealed class AudioActivity : IDisposable
         string? heard = null;
         try
         {
-            heard = LoudestApp();
+            // A player the system media controls already report as playing makes the meters redundant.
+            if (Glint.Core.AppServices.Media?.Current?.IsPlaying != true) heard = LoudestApp();
         }
         catch (Exception)
         {
@@ -117,15 +120,19 @@ public sealed class AudioActivity : IDisposable
             }
         }
         if (bestPid == 0) return null;
+        // Looking a process up is far costlier than the meters; the same player keeps winning tick after tick.
+        if (bestPid == _namePid && _name is not null) return _name;
         try
         {
             using var process = Process.GetProcessById((int)bestPid);
-            return process.ProcessName;
+            _name = process.ProcessName;
         }
         catch (Exception)
         {
-            return "audio";
+            _name = "audio";
         }
+        _namePid = bestPid;
+        return _name;
     }
 
     public void Dispose()
