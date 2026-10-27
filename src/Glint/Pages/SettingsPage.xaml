@@ -162,6 +162,18 @@
                                 ValueChanged="HoverSlider_ValueChanged"/>
                         <TextBlock x:Name="HoverValue" Grid.Column="2" Style="{StaticResource ValueText}" Text="120 мс"/>
                     </Grid>
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="190"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource RowLabel}" Text="Положение"/>
+                        <TextBlock Grid.Column="1" Style="{StaticResource MutedText}" VerticalAlignment="Center" TextWrapping="Wrap"
+                                   Text="Перетащите пилюлю или шапку панели вдоль верха экрана; двойной клик — вернуть в центр"/>
+                        <Button Grid.Column="2" Style="{StaticResource GhostButton}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                Content="По центру" Click="CenterPill_Click"/>
+                    </Grid>
                 </StackPanel>
             </Border>
 
@@ -277,6 +289,30 @@
                         <TextBlock Text="Папка данных" Foreground="{DynamicResource AccentBrush}"/>
                     </Button>
                 </Grid>
+            </Border>
+
+            <!-- Обновление: только по кнопке, Glint сам в сеть не ходит -->
+            <Border Style="{StaticResource Card}" Margin="0,8,0,0">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Обновление" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="UpdateStatus" Style="{StaticResource MutedText}" Margin="0,2,0,0" TextWrapping="Wrap" TextTrimming="None"
+                                       Text="Проверяет последнюю версию на GitHub"/>
+                        </StackPanel>
+                        <Button x:Name="UpdateButton" Grid.Column="1" Style="{StaticResource TileButton}" Margin="8,0,0,0"
+                                VerticalAlignment="Center" HorizontalContentAlignment="Center" Click="Update_Click">
+                            <TextBlock x:Name="UpdateButtonText" Text="Проверить обновления" Foreground="{DynamicResource AccentBrush}"/>
+                        </Button>
+                    </Grid>
+                    <ProgressBar x:Name="UpdateProgress" Height="3" Margin="0,10,0,0" Minimum="0" Maximum="1"
+                                 Visibility="Collapsed" BorderThickness="0"
+                                 Background="{DynamicResource CardBrush}" Foreground="{DynamicResource AccentBrush}"/>
+                </StackPanel>
             </Border>
 
         </StackPanel>

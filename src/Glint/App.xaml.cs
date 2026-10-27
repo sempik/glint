@@ -10,6 +10,7 @@ namespace Glint;
 public partial class App : Application
 {
     Mutex? _singleInstance;
+    bool _ownsSingleInstance;
     PillWindow? _pill;
     CommandBarWindow? _commandBar;
     HotkeyManager? _hotkeys;
@@ -25,11 +26,14 @@ public partial class App : Application
         base.OnStartup(e);
 
         _singleInstance = new Mutex(initiallyOwned: true, @"Local\Glint.SingleInstance", out var isFirst);
+        // Right after an update the old copy is still shutting down; wait for it instead of quitting.
+        if (!isFirst && e.Args.Contains(UpdateService.UpdatedFlag)) isFirst = WaitForPreviousInstance(_singleInstance);
         if (!isFirst)
         {
             Shutdown();
             return;
         }
+        _ownsSingleInstance = true;
 
         DispatcherUnhandledException += (_, args) =>
         {
@@ -38,6 +42,7 @@ public partial class App : Application
         };
 
         ScrubInheritedEnvironment();
+        UpdateService.CleanupOldVersion();
         // Without a Direct3D device the GPU driver doesn't treat Glint as a 3D app, so NVIDIA's desktop recording
         // stops reporting "Glint is preventing desktop capture". A small UI like this renders fine on the CPU.
         System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
@@ -110,7 +115,20 @@ public partial class App : Application
             AppServices.Notifier.Flash("Горячая клавиша занята", gesture, Glyphs.Info, TimeSpan.FromSeconds(4));
     }
 
-    void ExitApp()
+    static bool WaitForPreviousInstance(Mutex mutex)
+    {
+        try
+        {
+            return mutex.WaitOne(TimeSpan.FromSeconds(20));
+        }
+        catch (AbandonedMutexException)
+        {
+            // The old process exited without releasing it; the mutex is ours now.
+            return true;
+        }
+    }
+
+    internal void ExitApp()
     {
         IsExiting = true;
         _hotkeys?.Dispose();
@@ -130,6 +148,15 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        // Hand the mutex over cleanly; an updated copy may already be waiting for it.
+        try
+        {
+            if (_ownsSingleInstance) _singleInstance?.ReleaseMutex();
+        }
+        catch (ApplicationException)
+        {
+            // Not owned by this thread after all; disposing below still frees the handle.
+        }
         _singleInstance?.Dispose();
         base.OnExit(e);
     }

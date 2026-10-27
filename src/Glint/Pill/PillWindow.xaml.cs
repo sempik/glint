@@ -67,6 +67,10 @@ public partial class PillWindow : Window, IPillNotifier
     bool _compact = true;
     int _shellAnimation;
     bool? _equalizerRunning;
+    double? _dragAnchor;
+    double _dragStartOffset;
+    double? _dragOffset;
+    double _shellTargetWidth = PillWidth;
 
     static PillWindow()
     {
@@ -90,7 +94,7 @@ public partial class PillWindow : Window, IPillNotifier
         _clock.Start();
         ClockText.Text = DateTime.Now.ToString("HH:mm");
 
-        _hoverIn.Tick += (_, _) => { _hoverIn.Stop(); Expand(); };
+        _hoverIn.Tick += (_, _) => { _hoverIn.Stop(); if (_dragAnchor is null) Expand(); };
         _hoverOut.Tick += (_, _) => { _hoverOut.Stop(); TryCollapse(); };
         _flashTimer.Tick += (_, _) => { _flashTimer.Stop(); EndFlash(); };
         _visibilityRules.Tick += (_, _) => ApplyVisibilityRules();
@@ -108,6 +112,13 @@ public partial class PillWindow : Window, IPillNotifier
         PreviewDragEnter += (_, _) => _hoverOut.Stop();
         PreviewDragOver += (_, _) => _hoverOut.Stop();
         Drop += OnDrop;
+
+        foreach (var handle in new UIElement[] { PillView, FlashView, PanelHeader })
+            handle.MouseLeftButtonDown += OnDragHandleDown;
+        Shell.MouseMove += OnDragMove;
+        Shell.MouseLeftButtonUp += OnDragUp;
+        Shell.LostMouseCapture += OnDragCaptureLost;
+        DpiChanged += (_, _) => ApplyLayout();
 
         PinButton.Click += (_, _) => SetPinned(!_pinnedOpen);
         CommandBarButton.Click += (_, _) => AppServices.ToggleCommandBar();
@@ -161,8 +172,109 @@ public partial class PillWindow : Window, IPillNotifier
     {
         Width = WindowWidth * _scale;
         Height = (_compact ? CompactHeight : WindowHeight) * _scale;
-        Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
+        // The window stays on screen; near an edge the shell is shifted inside it (see ShiftFor).
+        var screen = ScreenWidth;
+        Left = Math.Clamp(screen / 2 + CurrentOffset - Width / 2, 0, Math.Max(0, screen - Width));
         Top = 0;
+        ShellShift.BeginAnimation(TranslateTransform.XProperty, null);
+        ShellShift.X = ShiftFor(_shellTargetWidth);
+    }
+
+    /// <summary>
+    /// Primary screen width in this window's DIPs. SystemParameters converts with the DPI cached at startup,
+    /// which goes stale when the display scale changes while Glint runs.
+    /// </summary>
+    double ScreenWidth => Glint.Pages.HomeNative.GetSystemMetrics(SM_CXSCREEN) / VisualTreeHelper.GetDpi(this).DpiScaleX;
+
+    const int SM_CXSCREEN = 0;
+
+    /// <summary>The pill itself may go right up to a screen edge, clear of the browser tabs it would cover.</summary>
+    double ClampOffset(double offset)
+    {
+        var room = Math.Max(0, ScreenWidth / 2 - (PillMediaWidth / 2 + 8) * _scale);
+        return Math.Clamp(offset, -room, room);
+    }
+
+    double CurrentOffset => ClampOffset(_dragOffset ?? AppServices.Settings.Current.PillOffset);
+
+    /// <summary>
+    /// Shift inside the window that puts a shell of this width under the chosen spot, limited so the shell
+    /// never leaves the window: the pill sits at the edge, the wide panel slides back onto the screen.
+    /// </summary>
+    double ShiftFor(double shellWidth)
+    {
+        var shift = ScreenWidth / 2 + CurrentOffset - (Left + Width / 2);
+        var room = Math.Max(0, (Width - (shellWidth + 40) * _scale) / 2);
+        return Math.Clamp(shift, -room, room);
+    }
+
+    // ───────────── Dragging along the top edge ─────────────
+
+    // The pill can cover browser tabs, so it can be moved sideways by the pill itself or the panel header.
+    // Only horizontal: the panel opens downward and must stay attached to the top edge.
+    // Shell holds the capture: the handle itself may fade out mid-drag (panel opening, flash ending).
+
+    void OnDragHandleDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            SavePillOffset(0);
+            e.Handled = true;
+            return;
+        }
+        if (!Shell.CaptureMouse()) return;
+        _dragAnchor = PointToScreen(e.GetPosition(this)).X;
+        _dragStartOffset = CurrentOffset;
+        _dragOffset = null;
+        // Nothing may swap the view under the cursor while the button is held.
+        _hoverIn.Stop();
+        _flashTimer.Stop();
+        e.Handled = true;
+    }
+
+    void OnDragMove(object sender, MouseEventArgs e)
+    {
+        if (_dragAnchor is not double anchor || e.LeftButton != MouseButtonState.Pressed) return;
+        var dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        var delta = (PointToScreen(e.GetPosition(this)).X - anchor) / dpi;
+        // A small threshold so a plain click on the pill doesn't nudge it.
+        if (_dragOffset is null && Math.Abs(delta) < 4) return;
+        if (_dragOffset is null) Mouse.OverrideCursor = Cursors.SizeWE;
+        _dragOffset = ClampOffset(_dragStartOffset + delta);
+        ApplyWindowSize();
+    }
+
+    void OnDragUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_dragAnchor is null) return;
+        Shell.ReleaseMouseCapture();
+    }
+
+    void OnDragCaptureLost(object sender, MouseEventArgs e)
+    {
+        if (_dragAnchor is null) return;
+        _dragAnchor = null;
+        Mouse.OverrideCursor = null;
+        if (_dragOffset is double offset) SavePillOffset(offset);
+        _dragOffset = null;
+        // Resume what the press paused: the flash countdown, and the hover that opens the panel.
+        if (_state == State.Flash) _flashTimer.Start();
+        if (Shell.IsMouseOver) { if (_state != State.Expanded) _hoverIn.Start(); }
+        else if (_state == State.Expanded) _hoverOut.Start();
+    }
+
+    void SavePillOffset(double offset)
+    {
+        try
+        {
+            AppServices.Settings.Current.PillOffset = Math.Round(offset);
+            AppServices.Settings.Save();
+        }
+        catch (Exception ex)
+        {
+            App.LogError(ex);
+        }
+        ApplyWindowSize();
     }
 
     void SetCompact(bool compact)
@@ -289,6 +401,9 @@ public partial class PillWindow : Window, IPillNotifier
         var duration = TimeSpan.FromMilliseconds(340);
         var ease = new BackEase { Amplitude = 0.22, EasingMode = EasingMode.EaseOut };
         SetCompact(false);
+        // Near a screen edge the panel slides inward as it grows, and the pill slides back as it shrinks.
+        _shellTargetWidth = width;
+        ShellShift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(ShiftFor(width), duration) { EasingFunction = ease });
         var generation = ++_shellAnimation;
         var widthAnim = new DoubleAnimation(width, duration) { EasingFunction = ease };
         // Shrink back only after the last animation settles on the plain pill (the pill's fade-in ends earlier).

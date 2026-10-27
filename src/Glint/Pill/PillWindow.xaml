@@ -12,103 +12,110 @@
         The window is large and fully transparent; only the Shell border is hit-testable,
         so clicks outside the pill fall through to whatever is underneath.
     -->
-    <Grid x:Name="Root" VerticalAlignment="Top" HorizontalAlignment="Center">
-        <Grid.LayoutTransform>
-            <ScaleTransform x:Name="RootScale" ScaleX="1" ScaleY="1"/>
-        </Grid.LayoutTransform>
+    <!-- ShellShift moves the shell sideways inside the window when the pill is dragged near a screen edge. -->
+    <Grid VerticalAlignment="Top" HorizontalAlignment="Center">
+        <Grid.RenderTransform>
+            <TranslateTransform x:Name="ShellShift"/>
+        </Grid.RenderTransform>
+        <Grid x:Name="Root" VerticalAlignment="Top" HorizontalAlignment="Center">
+            <Grid.LayoutTransform>
+                <ScaleTransform x:Name="RootScale" ScaleX="1" ScaleY="1"/>
+            </Grid.LayoutTransform>
 
-        <!--
-            Surface, stroke and shadow live on their own cached layer that follows Shell's size. Rendering is
-            software-only, and with the blur on Shell itself every tick of the equalizer or the progress bar
-            re-blurred the whole panel on the CPU; now the blur is redone only when the size changes.
-        -->
-        <!-- The cache sits on a wrapper so the blurred shadow is part of the cached bitmap. -->
-        <Grid IsHitTestVisible="False" Margin="20,8,20,30" VerticalAlignment="Top" HorizontalAlignment="Center">
-            <Grid.CacheMode>
-                <BitmapCache x:Name="ShellCache" SnapsToDevicePixels="True"/>
-            </Grid.CacheMode>
-            <Border x:Name="ShellBackground"
-                    Width="{Binding Width, ElementName=Shell}" Height="{Binding Height, ElementName=Shell}"
-                    CornerRadius="{Binding CornerRadius, ElementName=Shell}"
-                    Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource AccentStrokeBrush}" BorderThickness="1">
-                <Border.Effect>
-                    <DropShadowEffect x:Name="ShellShadow" BlurRadius="26" ShadowDepth="6" Direction="270" Opacity="0.45" Color="#000000"/>
-                </Border.Effect>
-            </Border>
-        </Grid>
+            <!--
+                Surface, stroke and shadow live on their own cached layer that follows Shell's size. Rendering is
+                software-only, and with the blur on Shell itself every tick of the equalizer or the progress bar
+                re-blurred the whole panel on the CPU; now the blur is redone only when the size changes.
+            -->
+            <!-- The cache sits on a wrapper so the blurred shadow is part of the cached bitmap. -->
+            <Grid IsHitTestVisible="False" Margin="20,8,20,30" VerticalAlignment="Top" HorizontalAlignment="Center">
+                <Grid.CacheMode>
+                    <BitmapCache x:Name="ShellCache" SnapsToDevicePixels="True"/>
+                </Grid.CacheMode>
+                <Border x:Name="ShellBackground"
+                        Width="{Binding Width, ElementName=Shell}" Height="{Binding Height, ElementName=Shell}"
+                        CornerRadius="{Binding CornerRadius, ElementName=Shell}"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource AccentStrokeBrush}" BorderThickness="1">
+                    <Border.Effect>
+                        <DropShadowEffect x:Name="ShellShadow" BlurRadius="26" ShadowDepth="6" Direction="270" Opacity="0.45" Color="#000000"/>
+                    </Border.Effect>
+                </Border>
+            </Grid>
 
-        <!-- Transparent (not null) background keeps the whole shell hit-testable for hover and drops. -->
-        <Border x:Name="Shell"
-                Width="200" Height="36" CornerRadius="18"
-                Margin="20,8,20,30"
-                VerticalAlignment="Top" HorizontalAlignment="Center"
-                Background="Transparent" BorderThickness="1">
+            <!-- Transparent (not null) background keeps the whole shell hit-testable for hover and drops. -->
+            <Border x:Name="Shell"
+                    Width="200" Height="36" CornerRadius="18"
+                    Margin="20,8,20,30"
+                    VerticalAlignment="Top" HorizontalAlignment="Center"
+                    Background="Transparent" BorderThickness="1">
 
-            <Grid>
-                <!-- Collapsed pill: indicator · clock · equalizer -->
-                <Grid x:Name="PillView" Margin="12,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="22"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="22"/>
-                    </Grid.ColumnDefinitions>
+                <Grid>
+                    <!-- Collapsed pill: indicator · clock · equalizer -->
+                    <Grid x:Name="PillView" Margin="12,0" Background="Transparent">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="22"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="22"/>
+                        </Grid.ColumnDefinitions>
 
-                    <Grid Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
-                        <Border x:Name="PillArt" Width="20" Height="20" CornerRadius="6" Visibility="Collapsed">
-                            <Border.Background>
-                                <ImageBrush x:Name="PillArtBrush" Stretch="UniformToFill"/>
-                            </Border.Background>
-                        </Border>
-                        <Ellipse x:Name="PillDot" Width="8" Height="8" Fill="{DynamicResource AccentFillBrush}"/>
+                        <Grid Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                            <Border x:Name="PillArt" Width="20" Height="20" CornerRadius="6" Visibility="Collapsed">
+                                <Border.Background>
+                                    <ImageBrush x:Name="PillArtBrush" Stretch="UniformToFill"/>
+                                </Border.Background>
+                            </Border>
+                            <Ellipse x:Name="PillDot" Width="8" Height="8" Fill="{DynamicResource AccentFillBrush}"/>
+                        </Grid>
+
+                        <TextBlock x:Name="ClockText" Grid.Column="1"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   FontSize="13" FontWeight="SemiBold" Text="00:00"/>
+
+                        <StackPanel x:Name="Equalizer" Grid.Column="2" Orientation="Horizontal"
+                                    Height="14" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                    Visibility="Collapsed"/>
                     </Grid>
 
-                    <TextBlock x:Name="ClockText" Grid.Column="1"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                               FontSize="13" FontWeight="SemiBold" Text="00:00"/>
-
-                    <StackPanel x:Name="Equalizer" Grid.Column="2" Orientation="Horizontal"
-                                Height="14" VerticalAlignment="Center" HorizontalAlignment="Right"
-                                Visibility="Collapsed"/>
-                </Grid>
-
-                <!-- Flash message -->
-                <Grid x:Name="FlashView" Margin="9,0,18,0" Visibility="Collapsed" Opacity="0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <Border x:Name="FlashIconBg" Width="34" Height="34" CornerRadius="17" Background="{DynamicResource CardBrush}" VerticalAlignment="Center">
-                        <TextBlock x:Name="FlashIcon" Style="{StaticResource Icon}" Foreground="{DynamicResource AccentBrush}"/>
-                    </Border>
-                    <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
-                        <TextBlock x:Name="FlashTitle" FontWeight="SemiBold"/>
-                        <TextBlock x:Name="FlashSubtitle" Style="{StaticResource MutedText}" Margin="0,1,0,0"/>
-                    </StackPanel>
-                </Grid>
-
-                <!-- Expanded panel -->
-                <Grid x:Name="PanelView" Margin="14,10,14,14" Visibility="Collapsed" Opacity="0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <DockPanel LastChildFill="True">
-                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                            <Button x:Name="CommandBarButton" Style="{StaticResource GhostButton}" Padding="8,5" ToolTip="Командная строка">
-                                <TextBlock Style="{StaticResource Icon}" Text="&#xE721;" FontSize="13" Foreground="{StaticResource MutedBrush}"/>
-                            </Button>
-                            <Button x:Name="PinButton" Style="{StaticResource GhostButton}" Padding="8,5" ToolTip="Не сворачивать">
-                                <TextBlock x:Name="PinIcon" Style="{StaticResource Icon}" Text="&#xE718;" FontSize="13" Foreground="{StaticResource MutedBrush}"/>
-                            </Button>
+                    <!-- Flash message -->
+                    <Grid x:Name="FlashView" Margin="9,0,18,0" Visibility="Collapsed" Opacity="0" Background="Transparent">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="FlashIconBg" Width="34" Height="34" CornerRadius="17" Background="{DynamicResource CardBrush}" VerticalAlignment="Center">
+                            <TextBlock x:Name="FlashIcon" Style="{StaticResource Icon}" Foreground="{DynamicResource AccentBrush}"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="FlashTitle" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="FlashSubtitle" Style="{StaticResource MutedText}" Margin="0,1,0,0"/>
                         </StackPanel>
-                        <StackPanel x:Name="TabStrip" Orientation="Horizontal"/>
-                    </DockPanel>
+                    </Grid>
 
-                    <ContentControl x:Name="PageHost" Grid.Row="1" Margin="0,10,0,0" Focusable="False"/>
+                    <!-- Expanded panel -->
+                    <Grid x:Name="PanelView" Margin="14,10,14,14" Visibility="Collapsed" Opacity="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Empty header space drags the pill along the top edge (buttons and tabs keep their clicks). -->
+                        <DockPanel x:Name="PanelHeader" LastChildFill="True" Background="Transparent">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button x:Name="CommandBarButton" Style="{StaticResource GhostButton}" Padding="8,5" ToolTip="Командная строка">
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE721;" FontSize="13" Foreground="{StaticResource MutedBrush}"/>
+                                </Button>
+                                <Button x:Name="PinButton" Style="{StaticResource GhostButton}" Padding="8,5" ToolTip="Не сворачивать">
+                                    <TextBlock x:Name="PinIcon" Style="{StaticResource Icon}" Text="&#xE718;" FontSize="13" Foreground="{StaticResource MutedBrush}"/>
+                                </Button>
+                            </StackPanel>
+                            <StackPanel x:Name="TabStrip" Orientation="Horizontal"/>
+                        </DockPanel>
+
+                        <ContentControl x:Name="PageHost" Grid.Row="1" Margin="0,10,0,0" Focusable="False"/>
+                    </Grid>
                 </Grid>
-            </Grid>
-        </Border>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Net;
+using System.Net.Http;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
@@ -413,6 +415,13 @@ public partial class SettingsPage : UserControl
         Save();
     }
 
+    void CenterPill_Click(object sender, RoutedEventArgs e)
+    {
+        S.PillOffset = 0;
+        _saveDebounce.Stop();
+        Save();
+    }
+
     void HoverSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (HoverValue is null) return;
@@ -603,6 +612,108 @@ public partial class SettingsPage : UserControl
     // ───────────── О программе ─────────────
 
     void GitHub_Click(object sender, RoutedEventArgs e) => Open(GitHubUrl);
+
+    // One button, two steps: "check" finds a newer release, the same button then installs it.
+    UpdateInfo? _update;
+    bool _updating;
+    bool _pageOnly;
+
+    async void Update_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updating) return;
+        _updating = true;
+        UpdateButton.IsEnabled = false;
+        try
+        {
+            if (_update is null) await CheckForUpdateAsync();
+            else await InstallUpdateAsync(_update);
+        }
+        finally
+        {
+            _updating = false;
+            UpdateButton.IsEnabled = true;
+        }
+    }
+
+    async Task CheckForUpdateAsync()
+    {
+        UpdateStatus.Text = "Проверяю…";
+        try
+        {
+            _update = await UpdateService.CheckAsync();
+        }
+        catch (Exception ex)
+        {
+            App.LogError(ex);
+            UpdateStatus.Text = ex switch
+            {
+                HttpRequestException { StatusCode: HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests } =>
+                    "GitHub временно ограничил запросы. Попробуйте через час.",
+                HttpRequestException { StatusCode: HttpStatusCode.NotFound } => "Релизов пока нет.",
+                InvalidDataException => ex.Message,
+                _ => "Не удалось связаться с GitHub. Проверьте интернет и попробуйте ещё раз.",
+            };
+            return;
+        }
+
+        if (_update is null)
+        {
+            UpdateStatus.Text = $"У вас последняя версия ({GetVersion()})";
+            return;
+        }
+        UpdateStatus.Text = $"Доступна версия {_update.Version.ToString(3)}, у вас {GetVersion()}";
+        UpdateButtonText.Text = UpdateService.CanSelfUpdate ? $"Обновить до {_update.Version.ToString(3)}" : "Открыть страницу релиза";
+    }
+
+    async Task InstallUpdateAsync(UpdateInfo update)
+    {
+        // A build run from source can't replace itself; send the user to the download instead.
+        if (!UpdateService.CanSelfUpdate || _pageOnly)
+        {
+            Open(update.PageUrl);
+            return;
+        }
+
+        UpdateStatus.Text = "Скачиваю…";
+        UpdateProgress.Value = 0;
+        UpdateProgress.Visibility = Visibility.Visible;
+        // Keep the panel open while the download runs, like with the file dialogs.
+        Glint.Pill.PillWindow.BeginModal();
+        try
+        {
+            var progress = new Progress<double>(p =>
+            {
+                UpdateProgress.Value = p;
+                UpdateStatus.Text = $"Скачиваю… {p:P0}";
+            });
+            await UpdateService.InstallAsync(update, progress);
+            UpdateStatus.Text = "Перезапускаю…";
+            ((App)Application.Current).ExitApp();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            App.LogError(ex);
+            UpdateStatus.Text = "Нет прав на запись в папку с Glint. Скачайте новую версию со страницы релиза.";
+            UpdateButtonText.Text = "Открыть страницу релиза";
+            // Retrying would fail the same way; from now on the button only opens the page.
+            _pageOnly = true;
+        }
+        catch (Exception ex)
+        {
+            App.LogError(ex);
+            UpdateStatus.Text = ex switch
+            {
+                UpdateService.StalledException => "Скачивание остановилось — похоже, пропал интернет. Попробуйте ещё раз.",
+                InvalidDataException => $"{ex.Message} Попробуйте ещё раз.",
+                _ => "Не удалось обновиться. Попробуйте ещё раз или скачайте со страницы релиза.",
+            };
+        }
+        finally
+        {
+            Glint.Pill.PillWindow.EndModal();
+            UpdateProgress.Visibility = Visibility.Collapsed;
+        }
+    }
 
     void DataFolder_Click(object sender, RoutedEventArgs e)
     {

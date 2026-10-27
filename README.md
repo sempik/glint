@@ -23,6 +23,8 @@
 
 Файл не подписан платным сертификатом, поэтому Windows SmartScreen может предупредить при первом запуске: «Подробнее» → «Выполнить в любом случае». Сборки делает GitHub Actions прямо из этого репозитория.
 
+**Обновление:** Настройки → «Проверить обновления». Glint скачает новую версию с этой страницы релизов, сверит контрольную сумму и перезапустится сам. Если Glint лежит в папке без прав на запись (например, Program Files), откроется страница релиза для ручного скачивания.
+
 ## Требования
 
 - Windows 10 версии 2004 (сборка 19041) или новее, либо Windows 11, x64
@@ -47,7 +49,7 @@ dotnet publish src/Glint/Glint.csproj -c Release -r win-x64 --self-contained tru
 
 ## Данные и приватность
 
-Все настройки, история буфера и полка хранятся локально в `%AppData%\Glint`. Никакой телеметрии, аналитики и сетевых запросов, кроме тех, что вы запускаете сами (например, поиск в интернете из командной строки).
+Все настройки, история буфера и полка хранятся локально в `%AppData%\Glint`. Никакой телеметрии, аналитики и сетевых запросов, кроме тех, что вы запускаете сами (например, поиск в интернете из командной строки или проверка обновлений кнопкой в настройках — сам Glint обновления не проверяет).
 
 История буфера обмена (текст и картинки) хранится на диске **без шифрования** в `%AppData%\Glint` (`clipboard.json` и папка `clips\`) и сохраняется между перезапусками. Содержимое, которое менеджеры паролей помечают как приватное, не сохраняется, но пароль, скопированный из обычного поля, попадёт в историю. Удалить её можно кнопкой «Очистить» во вкладке «Буфер» или удалив эту папку; отключить историю — выставив `ClipboardHistoryLimit` в `0` в `settings.json`.
 
@@ -67,14 +69,14 @@ Glint — независимый проект с открытым исходны
 
 **Features:** clock & media pill with flash messages; hover panel with tabs; media controls and volume; quick actions (full-screen screenshot saved to Pictures\Glint, region screenshot via the Windows Snipping Tool, eyedropper, lock, downloads) and a dock of pinned apps (the + button, drag a shortcut onto it, or right-click an app in the command bar); a playback indicator that also reacts to players that don't register with Windows media controls; clipboard history with search, pinning and click-to-paste; file shelf with drag in/out; Alt+Space command bar (apps, files, calculator, timers, web search); text tools (keyboard layout fix, transliteration, case, JSON, Base64); system load tab (CPU total/per-thread/clock, GPU, RAM, disks, network, top processes, one-minute graphs; GPU temperature, VRAM, power and fan on NVIDIA; no CPU temperature, since Windows only exposes it to kernel drivers; sampling runs only while the tab is open); color themes (seven presets, custom HEX accents, background tint and opacity, applied live without a restart, tray icon included); auto-hide in fullscreen and selected apps; tray icon with autostart.
 
-**Download:** [Glint.exe](https://github.com/sempik/glint/releases/latest/download/Glint.exe) — a single self-contained file, no installer and no .NET runtime needed. It isn't code-signed, so SmartScreen may warn on first run ("More info" → "Run anyway"). Release builds are produced by GitHub Actions from this repository.
+**Download:** [Glint.exe](https://github.com/sempik/glint/releases/latest/download/Glint.exe) — a single self-contained file, no installer and no .NET runtime needed. It isn't code-signed, so SmartScreen may warn on first run ("More info" → "Run anyway"). Release builds are produced by GitHub Actions from this repository. To update, use Settings → "Проверить обновления": Glint downloads the latest release, checks its SHA-256 and restarts itself.
 
 **Requirements:** Windows 10 19041+ or Windows 11, x64.
 
 **Build:** install the .NET 8 SDK, then run `dotnet build`, or
 `dotnet publish src/Glint/Glint.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o publish`.
 
-**Privacy:** all data stays on your machine in `%AppData%\Glint`. No telemetry. Clipboard history (text and images) is stored **unencrypted** there (`clipboard.json` and `clips\`) and survives restarts. Content that password managers mark as private is not saved. Use "Очистить" in the clipboard tab or delete the folder to remove it.
+**Privacy:** all data stays on your machine in `%AppData%\Glint`. No telemetry; the only network requests are the ones you start (web search, the update button). Clipboard history (text and images) is stored **unencrypted** there (`clipboard.json` and `clips\`) and survives restarts. Content that password managers mark as private is not saved. Use "Очистить" in the clipboard tab or delete the folder to remove it.
 
 **Not affiliated:** Glint is an independent project and is not affiliated with or endorsed by Apple or any other product. Windows is a trademark of Microsoft Corporation.
 
