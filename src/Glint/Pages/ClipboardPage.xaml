@@ -1,0 +1,127 @@
+<UserControl x:Class="Glint.Pages.ClipboardPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:core="clr-namespace:Glint.Core"
+             xmlns:pages="clr-namespace:Glint.Pages"
+             Background="Transparent">
+
+    <UserControl.Resources>
+        <pages:ClipboardPreviewConverter x:Key="PreviewConverter"/>
+        <pages:ClipboardMetaConverter x:Key="MetaConverter"/>
+
+        <Style x:Key="RowActionButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
+            <Setter Property="Width" Value="28"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="2,0,0,0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+
+        <DataTemplate x:Key="ClipTemplate" DataType="{x:Type core:ClipEntry}">
+            <Border x:Name="Row" Background="Transparent" CornerRadius="10" Padding="8,6" Margin="0,0,0,2" Cursor="Hand"
+                    MouseLeftButtonDown="OnRowMouseDown" MouseLeftButtonUp="OnRowMouseUp">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="48"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border x:Name="KindBadge" Width="36" Height="36" CornerRadius="10" Background="{DynamicResource CardBrush}"
+                            HorizontalAlignment="Left" VerticalAlignment="Center">
+                        <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Text}" Foreground="{StaticResource MutedBrush}"/>
+                    </Border>
+                    <Image x:Name="Thumb" Visibility="Collapsed" MaxWidth="48" MaxHeight="48" Stretch="Uniform"
+                           HorizontalAlignment="Left" VerticalAlignment="Center"
+                           pages:ClipboardThumb.Path="{Binding ImagePath}"/>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0,8,0">
+                        <TextBlock Text="{Binding Converter={StaticResource PreviewConverter}}" TextWrapping="Wrap"
+                                   LineHeight="18" LineStackingStrategy="BlockLineHeight" MaxHeight="36"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                            <TextBlock x:Name="PinMark" Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Pin}" FontSize="10"
+                                       Foreground="{DynamicResource AccentBrush}" Margin="0,0,5,0" Visibility="Collapsed"/>
+                            <TextBlock Style="{StaticResource MutedText}" Text="{Binding Converter={StaticResource MetaConverter}}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel x:Name="Actions" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
+                        <Button x:Name="PinButton" Style="{StaticResource RowActionButton}" Click="OnPinClick" ToolTip="Закрепить">
+                            <TextBlock x:Name="PinGlyph" Style="{StaticResource Icon}" FontSize="13" Text="{x:Static core:Glyphs.Pin}"/>
+                        </Button>
+                        <Button Style="{StaticResource RowActionButton}" Click="OnCopyClick" ToolTip="Только копировать">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="13" Text="{x:Static core:Glyphs.Copy}"/>
+                        </Button>
+                        <Button Style="{StaticResource RowActionButton}" Click="OnDeleteClick" ToolTip="Удалить">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="13" Text="{x:Static core:Glyphs.Delete}" Foreground="{StaticResource DangerBrush}"/>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static core:ClipKind.Image}">
+                    <Setter TargetName="KindBadge" Property="Visibility" Value="Collapsed"/>
+                    <Setter TargetName="Thumb" Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Pinned}" Value="True">
+                    <Setter TargetName="PinMark" Property="Visibility" Value="Visible"/>
+                    <Setter TargetName="PinGlyph" Property="Text" Value="{x:Static core:Glyphs.Unpin}"/>
+                    <Setter TargetName="PinButton" Property="ToolTip" Value="Открепить"/>
+                </DataTrigger>
+                <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Row" Property="Background" Value="{DynamicResource CardHoverBrush}"/>
+                    <Setter TargetName="Actions" Property="Visibility" Value="Visible"/>
+                </Trigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Grid>
+                <TextBox x:Name="SearchBox" Padding="32,7,8,7"
+                         TextChanged="OnSearchChanged"
+                         PreviewMouseLeftButtonDown="OnSearchMouseDown"
+                         PreviewKeyDown="OnSearchKeyDown"/>
+                <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Search}" FontSize="13"
+                           Foreground="{StaticResource MutedBrush}" HorizontalAlignment="Left" Margin="11,0,0,0" IsHitTestVisible="False"/>
+                <TextBlock x:Name="Placeholder" Style="{StaticResource MutedText}" FontSize="13" Text="Поиск в буфере"
+                           VerticalAlignment="Center" Margin="34,0,8,0" IsHitTestVisible="False"/>
+            </Grid>
+
+            <Button Grid.Column="1" Style="{StaticResource GhostButton}" Margin="8,0,0,0" Click="OnClearClick"
+                    ToolTip="Удалить всё, кроме закреплённых">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Delete}" FontSize="12" Margin="0,0,6,0"/>
+                    <TextBlock Text="Очистить" FontSize="12.5"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <ScrollViewer x:Name="ListScroll" Grid.Row="1" Focusable="False"
+                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl x:Name="ClipList" Focusable="False" Margin="0,0,6,0" ItemTemplate="{StaticResource ClipTemplate}"/>
+        </ScrollViewer>
+
+        <StackPanel x:Name="EmptyState" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    IsHitTestVisible="False" Visibility="Collapsed">
+            <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Clipboard}" FontSize="28"
+                       Foreground="{StaticResource MutedBrush}" Margin="0,0,0,10"/>
+            <TextBlock x:Name="EmptyText" Style="{StaticResource MutedText}" FontSize="13" HorizontalAlignment="Center"/>
+        </StackPanel>
+
+        <TextBlock Grid.Row="2" Style="{StaticResource MutedText}" Margin="2,8,0,0"
+                   Text="Клик — вставить · Shift+клик — только копировать"/>
+    </Grid>
+</UserControl>

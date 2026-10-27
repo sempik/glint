@@ -1,0 +1,284 @@
+<UserControl x:Class="Glint.Pages.SettingsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:core="clr-namespace:Glint.Core"
+             Background="Transparent">
+    <UserControl.Resources>
+        <Style x:Key="RowLabel" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="ValueText" TargetType="TextBlock" BasedOn="{StaticResource MutedText}">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="Margin" Value="10,0,0,0"/>
+            <Setter Property="MinWidth" Value="52"/>
+            <Setter Property="TextAlignment" Value="Right"/>
+        </Style>
+        <Style x:Key="SectionCard" TargetType="Border" BasedOn="{StaticResource Card}">
+            <Setter Property="Margin" Value="0,0,0,14"/>
+        </Style>
+        <!-- Bare clickable swatch: the content draws everything, focus stays where it was (e.g. in a HEX box). -->
+        <Style x:Key="SwatchButton" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="Transparent" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.65"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                  Focusable="False" Padding="0,0,6,0">
+        <StackPanel Margin="2,2,2,4">
+
+            <!-- Оформление -->
+            <TextBlock Style="{StaticResource SectionTitle}" Text="ОФОРМЛЕНИЕ"/>
+            <Border Style="{StaticResource SectionCard}">
+                <StackPanel>
+                    <!-- Preset swatches, filled in code from ThemeService.Presets -->
+                    <WrapPanel x:Name="PresetPanel" Margin="-4,0,0,0"/>
+
+                    <Border Height="1" Background="{StaticResource DividerBrush}" Margin="0,10,0,12"/>
+
+                    <!-- Свои цвета -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="18"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource RowLabel}" Text="Свои цвета"/>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border x:Name="Accent1Swatch" Width="22" Height="22" CornerRadius="11" BorderThickness="2"
+                                    BorderBrush="Transparent" Background="{DynamicResource AccentBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Style="{StaticResource MutedText}" Text="Акцент 1" Margin="8,0,8,0" VerticalAlignment="Center"/>
+                            <TextBox x:Name="Accent1Box" Width="88" MaxLength="7" VerticalAlignment="Center"
+                                     FontFamily="Consolas" ToolTip="#RGB или #RRGGBB, Enter — применить"
+                                     KeyDown="AccentBox_KeyDown" LostKeyboardFocus="AccentBox_LostKeyboardFocus"
+                                     GotKeyboardFocus="AccentBox_GotKeyboardFocus" TextChanged="AccentBox_TextChanged"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border x:Name="Accent2Swatch" Width="22" Height="22" CornerRadius="11" BorderThickness="2"
+                                    BorderBrush="Transparent" Background="{DynamicResource Accent2Brush}" VerticalAlignment="Center"/>
+                            <TextBlock Style="{StaticResource MutedText}" Text="Акцент 2" Margin="8,0,8,0" VerticalAlignment="Center"/>
+                            <TextBox x:Name="Accent2Box" Width="88" MaxLength="7" VerticalAlignment="Center"
+                                     FontFamily="Consolas" ToolTip="#RGB или #RRGGBB, Enter — применить"
+                                     KeyDown="AccentBox_KeyDown" LostKeyboardFocus="AccentBox_LostKeyboardFocus"
+                                     GotKeyboardFocus="AccentBox_GotKeyboardFocus" TextChanged="AccentBox_TextChanged"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Quick color dots, filled in code -->
+                    <Grid Margin="110,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel x:Name="QuickDotsPanel" Orientation="Horizontal" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="QuickDotsTarget" Grid.Column="1" Style="{StaticResource MutedText}"
+                                   Margin="10,0,0,0" VerticalAlignment="Center" Text="→ Акцент 1"/>
+                    </Grid>
+                    <TextBlock x:Name="ColorHint" Style="{StaticResource MutedText}" Margin="110,6,0,0"
+                               Text="Введите HEX и нажмите Enter или выберите точку"/>
+
+                    <Border Height="1" Background="{StaticResource DividerBrush}" Margin="0,12,0,12"/>
+
+                    <!-- Фон -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource RowLabel}" Text="Фон" VerticalAlignment="Top" Margin="0,6,0,0"/>
+                        <WrapPanel x:Name="TintPanel" Grid.Column="1" Margin="-4,0,0,0"/>
+                    </Grid>
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="190"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource RowLabel}" Text="Прозрачность фона"/>
+                        <Slider x:Name="OpacitySlider" Grid.Column="1" Style="{StaticResource SlimSlider}" VerticalAlignment="Center"
+                                Minimum="80" Maximum="100" TickFrequency="1" SmallChange="1" LargeChange="5"
+                                IsSnapToTickEnabled="True"
+                                ValueChanged="OpacitySlider_ValueChanged"/>
+                        <TextBlock x:Name="OpacityValue" Grid.Column="2" Style="{StaticResource ValueText}" Text="92%"/>
+                    </Grid>
+
+                    <Button Style="{StaticResource GhostButton}" HorizontalAlignment="Right" Margin="0,10,0,0"
+                            Content="Сбросить оформление" Click="ThemeReset_Click"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Вид -->
+            <TextBlock Style="{StaticResource SectionTitle}" Text="ВИД"/>
+            <Border Style="{StaticResource SectionCard}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="190"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource RowLabel}" Text="Размер пилюли"/>
+                        <Slider x:Name="ScaleSlider" Grid.Column="1" Style="{StaticResource SlimSlider}" VerticalAlignment="Center"
+                                Minimum="80" Maximum="200" TickFrequency="10" SmallChange="10" LargeChange="10"
+                                IsSnapToTickEnabled="True"
+                                ValueChanged="ScaleSlider_ValueChanged"
+                                Thumb.DragStarted="ScaleSlider_DragStarted"
+                                Thumb.DragCompleted="ScaleSlider_DragCompleted"/>
+                        <TextBlock x:Name="ScaleValue" Grid.Column="2" Style="{StaticResource ValueText}" Text="100%"/>
+                    </Grid>
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="190"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource RowLabel}" Text="Задержка раскрытия"/>
+                        <Slider x:Name="HoverSlider" Grid.Column="1" Style="{StaticResource SlimSlider}" VerticalAlignment="Center"
+                                Minimum="0" Maximum="600" TickFrequency="10" SmallChange="10" LargeChange="50"
+                                IsSnapToTickEnabled="True"
+                                ValueChanged="HoverSlider_ValueChanged"/>
+                        <TextBlock x:Name="HoverValue" Grid.Column="2" Style="{StaticResource ValueText}" Text="120 мс"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Поведение -->
+            <TextBlock Style="{StaticResource SectionTitle}" Text="ПОВЕДЕНИЕ"/>
+            <Border Style="{StaticResource SectionCard}">
+                <StackPanel>
+                    <CheckBox x:Name="FullscreenToggle" Style="{StaticResource ToggleSwitch}"
+                              Content="Скрывать в полноэкранных приложениях"
+                              Checked="FullscreenToggle_Changed" Unchecked="FullscreenToggle_Changed"/>
+                    <CheckBox x:Name="AutostartToggle" Style="{StaticResource ToggleSwitch}" Margin="0,12,0,0"
+                              Content="Запускать вместе с Windows"
+                              Checked="AutostartToggle_Changed" Unchecked="AutostartToggle_Changed"/>
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Командная строка"/>
+                            <TextBlock x:Name="HotkeyHint" Style="{StaticResource MutedText}" Margin="0,2,0,0"
+                                       Text="Кликните по полю и нажмите новое сочетание"/>
+                        </StackPanel>
+                        <TextBox x:Name="HotkeyBox" Grid.Column="1" Width="170" IsReadOnly="True" IsReadOnlyCaretVisible="False"
+                                 Cursor="Hand" TextAlignment="Center" VerticalAlignment="Center"
+                                 InputMethod.IsInputMethodEnabled="False"
+                                 PreviewKeyDown="HotkeyBox_PreviewKeyDown"
+                                 GotKeyboardFocus="HotkeyBox_GotKeyboardFocus"
+                                 LostKeyboardFocus="HotkeyBox_LostKeyboardFocus"/>
+                        <Button Grid.Column="2" Style="{StaticResource GhostButton}" Margin="6,0,0,0" VerticalAlignment="Center"
+                                Content="Сбросить" Click="HotkeyReset_Click"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Буфер обмена -->
+            <TextBlock Style="{StaticResource SectionTitle}" Text="БУФЕР ОБМЕНА"/>
+            <Border Style="{StaticResource SectionCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="190"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource RowLabel}" Text="История"/>
+                    <Slider x:Name="ClipSlider" Grid.Column="1" Style="{StaticResource SlimSlider}" VerticalAlignment="Center"
+                            Minimum="50" Maximum="1000" TickFrequency="50" SmallChange="50" LargeChange="100"
+                            IsSnapToTickEnabled="True"
+                            ValueChanged="ClipSlider_ValueChanged"/>
+                    <TextBlock x:Name="ClipValue" Grid.Column="2" Style="{StaticResource ValueText}" Text="200"/>
+                </Grid>
+            </Border>
+
+            <!-- Скрывать в приложениях -->
+            <TextBlock Style="{StaticResource SectionTitle}" Text="СКРЫВАТЬ В ПРИЛОЖЕНИЯХ"/>
+            <Border Style="{StaticResource SectionCard}">
+                <StackPanel>
+                    <ItemsControl x:Name="HiddenAppsList">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{DynamicResource CardHoverBrush}" CornerRadius="10" Padding="10,2,2,2" Margin="0,0,6,6">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding}" VerticalAlignment="Center" FontSize="12.5"/>
+                                        <Button Style="{StaticResource GhostButton}" Padding="6,4" Margin="4,0,0,0"
+                                                ToolTip="Убрать" Click="RemoveHiddenApp_Click">
+                                            <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Close}" FontSize="9"
+                                                       Foreground="{StaticResource MutedBrush}"/>
+                                        </Button>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock x:Name="HiddenAppsEmpty" Style="{StaticResource MutedText}" Margin="0,0,0,8"
+                               Text="Список пуст"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="HiddenAppInput" KeyDown="HiddenAppInput_KeyDown"/>
+                        <Button Grid.Column="1" Style="{StaticResource TileButton}" Margin="8,0,0,0"
+                                HorizontalContentAlignment="Center" Content="Добавить" Click="AddHiddenApp_Click"/>
+                    </Grid>
+                    <TextBlock Style="{StaticResource MutedText}" Margin="2,8,0,0" TextWrapping="Wrap" TextTrimming="None"
+                               Text="Имя процесса, например obs64 или vlc. Glint прячется, пока это приложение на переднем плане."/>
+                </StackPanel>
+            </Border>
+
+            <!-- О программе -->
+            <TextBlock Style="{StaticResource SectionTitle}" Text="О ПРОГРАММЕ"/>
+            <Border Style="{StaticResource Card}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="VersionText" Text="Glint" FontWeight="SemiBold"/>
+                        <TextBlock Style="{StaticResource MutedText}" Margin="0,2,0,0" Text="Открытый проект, лицензия MIT"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Style="{StaticResource GhostButton}" Click="GitHub_Click">
+                        <TextBlock Text="GitHub" Foreground="{DynamicResource AccentBrush}"/>
+                    </Button>
+                    <Button Grid.Column="2" Style="{StaticResource GhostButton}" Margin="4,0,0,0" Click="DataFolder_Click">
+                        <TextBlock Text="Папка данных" Foreground="{DynamicResource AccentBrush}"/>
+                    </Button>
+                </Grid>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

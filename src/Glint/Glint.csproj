@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Glint</AssemblyName>
+    <RootNamespace>Glint</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>0.1.0</Version>
+    <Product>Glint</Product>
+    <Company>sempik</Company>
+    <Copyright>Copyright (c) 2026 sempik</Copyright>
+  </PropertyGroup>
+
+  <!-- WinForms is only used for the tray icon; keep its namespaces out of implicit usings to avoid WPF name clashes. -->
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+    <!-- The WPF SDK drops System.IO from implicit usings; the code base relies on it everywhere. -->
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+</Project>
