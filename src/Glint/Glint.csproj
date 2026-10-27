@@ -11,7 +11,7 @@
     <AssemblyName>Glint</AssemblyName>
     <RootNamespace>Glint</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Product>Glint</Product>
     <Company>sempik</Company>
     <Copyright>Copyright (c) 2026 sempik</Copyright>

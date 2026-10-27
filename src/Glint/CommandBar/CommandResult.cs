@@ -20,6 +20,8 @@ public sealed class CommandResult
     public string? Path { get; init; }
     /// <summary>Ctrl+Shift+Enter; null when elevation makes no sense for this result.</summary>
     public Action? ExecuteElevated { get; init; }
+    /// <summary>Offers "pin to Home" in the row's context menu; uses <see cref="Path"/>.</summary>
+    public bool CanPin { get; init; }
 }
 
 public interface ICommandProvider

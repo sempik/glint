@@ -96,12 +96,18 @@ public partial class PillWindow : Window, IPillNotifier
         DragEnter += OnDragEnter;
         DragOver += (_, e) => { SetDropEffect(e); e.Handled = true; };
         DragLeave += (_, _) => _hoverOut.Start();
+        // DragLeave also fires when moving between children, and a child (the dock, a TextBox) may handle
+        // the DragEnter that follows; tunneling events always reach the window, so the panel stays open.
+        PreviewDragEnter += (_, _) => _hoverOut.Stop();
+        PreviewDragOver += (_, _) => _hoverOut.Stop();
         Drop += OnDrop;
 
         PinButton.Click += (_, _) => SetPinned(!_pinnedOpen);
         CommandBarButton.Click += (_, _) => AppServices.ToggleCommandBar();
 
         AppServices.Media.Changed += (_, _) => Dispatcher.BeginInvoke(UpdateMedia);
+        Glint.Services.AudioActivity.Shared.Changed += (_, _) => Dispatcher.BeginInvoke(UpdateMedia);
+        Glint.Services.AudioActivity.Shared.Start();
         AppServices.Settings.Changed += (_, _) => ApplyLayout();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += (_, _) => Dispatcher.BeginInvoke(ApplyLayout);
         SetShadow(full: false);
@@ -161,6 +167,8 @@ public partial class PillWindow : Window, IPillNotifier
             label.SetBinding(TextBlock.ForegroundProperty, follow);
             button.Checked += (_, _) => { label.Visibility = Visibility.Visible; ShowTab(index); };
             button.Unchecked += (_, _) => label.Visibility = Visibility.Collapsed;
+            // Like browser tabs: dragging a file over a tab opens it, e.g. Home to pin a shortcut.
+            button.DragEnter += (_, _) => button.IsChecked = true;
             _tabButtons.Add(button);
             TabStrip.Children.Add(button);
         }
@@ -439,12 +447,16 @@ public partial class PillWindow : Window, IPillNotifier
         {
             if (running)
             {
-                _bars[i].BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.25, 1, TimeSpan.FromMilliseconds(periods[i]))
+                var anim = new DoubleAnimation(0.25, 1, TimeSpan.FromMilliseconds(periods[i]))
                 {
                     AutoReverse = true,
                     RepeatBehavior = RepeatBehavior.Forever,
                     EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
-                });
+                };
+                // Rendering is software-only and every frame re-uploads the whole layered window; a few bouncing
+                // bars look the same at 24 fps and cost a fraction of the CPU of 60.
+                Timeline.SetDesiredFrameRate(anim, 24);
+                _bars[i].BeginAnimation(ScaleTransform.ScaleYProperty, anim);
             }
             else
             {
@@ -458,7 +470,11 @@ public partial class PillWindow : Window, IPillNotifier
     {
         var media = AppServices.Media.Current;
         var hadMedia = _hasMedia;
-        _hasMedia = media is not null;
+        // Some players (Web Audio, many Electron apps) never show up in the system media controls; if one is
+        // audibly playing while the known session is paused or absent, that session's info is stale anyway.
+        var audibleOnly = media?.IsPlaying != true && Glint.Services.AudioActivity.Shared.AudibleApp is not null;
+        if (audibleOnly) media = null;
+        _hasMedia = media is not null || audibleOnly;
 
         if (media?.Thumbnail is { } art)
         {
@@ -473,7 +489,7 @@ public partial class PillWindow : Window, IPillNotifier
         }
 
         Equalizer.Visibility = _hasMedia ? Visibility.Visible : Visibility.Collapsed;
-        SetEqualizerRunning(media?.IsPlaying == true);
+        SetEqualizerRunning(media?.IsPlaying == true || audibleOnly);
 
         if (_state == State.Pill && hadMedia != _hasMedia) AnimateShell(CurrentPillWidth, PillHeight);
     }
@@ -490,7 +506,8 @@ public partial class PillWindow : Window, IPillNotifier
         e.Handled = true;
         if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
         _hoverOut.Stop();
-        Expand(ShelfTab);
+        // An open panel keeps its tab, so files can reach the Home dock; hovering a tab switches to it.
+        if (_state != State.Expanded) Expand(ShelfTab);
     }
 
     void OnDrop(object sender, DragEventArgs e)

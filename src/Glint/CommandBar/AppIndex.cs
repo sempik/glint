@@ -141,6 +141,7 @@ public sealed class AppIndex : ICommandProvider
         Path = e.Path,
         Execute = () => Launch(e.Path, elevated: false),
         ExecuteElevated = () => Launch(e.Path, elevated: true),
+        CanPin = true,
     };
 
     void Launch(string path, bool elevated)

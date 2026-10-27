@@ -45,6 +45,9 @@ public partial class HomePage : UserControl
         DownloadsButton.Click += (_, _) => ShellOpen(HomeNative.GetDownloadsFolder());
 
         AddDockButton.Click += (_, _) => AddDockApps();
+        DockCard.DragEnter += OnDockDragOver;
+        DockCard.DragOver += OnDockDragOver;
+        DockCard.Drop += OnDockDrop;
         DockScroll.PreviewMouseWheel += OnDockWheel;
     }
 
@@ -518,9 +521,7 @@ public partial class HomePage : UserControl
     {
         try
         {
-            var settings = AppServices.Settings;
-            settings.Current.DockApps.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
-            settings.Save();
+            PinnedApps.Unpin(path);
         }
         catch (Exception ex)
         {
@@ -536,11 +537,12 @@ public partial class HomePage : UserControl
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
                 Title = "Закрепить в доке",
-                Filter = "Приложения и ярлыки (*.exe;*.lnk)|*.exe;*.lnk|Все файлы (*.*)|*.*",
+                Filter = "Приложения и ярлыки (*.exe;*.lnk;*.url;*.appref-ms)|*.exe;*.lnk;*.url;*.appref-ms|Все файлы (*.*)|*.*",
                 Multiselect = true,
                 // Keep .lnk files as-is so the shortcut's arguments and icon survive.
                 DereferenceLinks = false,
-                InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu),
+                // Most shortcuts people want live on the desktop; the shared Start Menu misses per-user installs.
+                InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
             };
             var owner = Window.GetWindow(this);
             bool? picked;
@@ -555,17 +557,31 @@ public partial class HomePage : UserControl
                 Glint.Pill.PillWindow.EndModal();
             }
             if (picked != true) return;
+            PinnedApps.Pin(dialog.FileNames);
+        }
+        catch (Exception ex)
+        {
+            App.LogError(ex);
+        }
+        RebuildDock();
+    }
 
-            var settings = AppServices.Settings;
-            var apps = settings.Current.DockApps;
-            var changed = false;
-            foreach (var file in dialog.FileNames)
-            {
-                if (apps.Any(p => string.Equals(p, file, StringComparison.OrdinalIgnoreCase))) continue;
-                apps.Add(file);
-                changed = true;
-            }
-            if (changed) settings.Save();
+    // Dropping shortcuts on the dock pins them; handled here so the pill doesn't send them to the shelf.
+
+    void OnDockDragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Link : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    void OnDockDrop(object sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        if (e.Data.GetData(DataFormats.FileDrop) is not string[] { Length: > 0 } paths) return;
+        try
+        {
+            var added = PinnedApps.Pin(paths);
+            if (added > 0) AppServices.Notifier.Flash(added == 1 ? "Закреплено" : $"Закреплено: {added}", Path.GetFileNameWithoutExtension(paths[0]), Glyphs.Pin);
         }
         catch (Exception ex)
         {

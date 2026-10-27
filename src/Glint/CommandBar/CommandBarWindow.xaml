@@ -56,7 +56,8 @@
 
                 <TextBlock x:Name="Footer" Style="{StaticResource MutedText}" FontSize="11" Margin="12,6,12,2"
                            Visibility="Collapsed"
-                           Text="Enter — выполнить   ·   Ctrl+Enter — открыть папку   ·   Ctrl+Shift+Enter — от администратора   ·   Esc — закрыть"/>
+                           Text="Enter — выполнить   ·   Ctrl+Enter — открыть папку   ·   Ctrl+Shift+Enter — от администратора   ·   ПКМ — закрепить   ·   Esc — закрыть"
+                           TextTrimming="CharacterEllipsis"/>
             </StackPanel>
         </Border>
     </Grid>

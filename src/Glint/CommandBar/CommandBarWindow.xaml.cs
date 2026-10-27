@@ -272,7 +272,42 @@ public partial class CommandBarWindow : Window
             Select(index);
             Execute(ModeFromModifiers());
         };
+        if (r.CanPin && r.Path is { } path) row.ContextMenu = BuildPinMenu(r, path, index);
         return row;
+    }
+
+    ContextMenu BuildPinMenu(CommandResult r, string path, int index)
+    {
+        var pin = new MenuItem();
+        pin.Click += (_, _) =>
+        {
+            try
+            {
+                if (PinnedApps.IsPinned(path))
+                {
+                    PinnedApps.Unpin(path);
+                    AppServices.Notifier.Flash("Откреплено", r.Title, Glyphs.Unpin);
+                }
+                else
+                {
+                    PinnedApps.Pin(new[] { path });
+                    AppServices.Notifier.Flash("Закреплено на главной", r.Title, Glyphs.Pin);
+                }
+            }
+            catch (Exception ex)
+            {
+                App.LogError(ex);
+            }
+        };
+        var reveal = new MenuItem { Header = "Показать в папке" };
+        reveal.Click += (_, _) => { Select(index); Execute(ExecMode.RevealFolder); };
+        var elevated = new MenuItem { Header = "От имени администратора" };
+        elevated.Click += (_, _) => { Select(index); Execute(ExecMode.Elevated); };
+
+        var menu = new ContextMenu { Items = { pin, reveal, elevated } };
+        // The dock may have changed since the row was built.
+        menu.Opened += (_, _) => pin.Header = PinnedApps.IsPinned(path) ? "Открепить с главной" : "Закрепить на главной";
+        return menu;
     }
 
     void AttachIcon(Grid host, TextBlock glyph, string path)

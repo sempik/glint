@@ -4,10 +4,10 @@
 
 ## Возможности
 
-- **Пилюля** с часами, обложкой трека и индикатором воспроизведения; короткие всплывающие сообщения («Скопировано», «Таймер готов»).
+- **Пилюля** с часами, обложкой трека и индикатором воспроизведения; короткие всплывающие сообщения («Скопировано», «Таймер готов»). Индикатор оживает и для плееров, которые не сообщают Windows о воспроизведении: Glint замечает, что приложение играет звук.
 - **Панель при наведении** с вкладками: Главная, Буфер, Полка, Текст, Система, Настройки. Можно закрепить, чтобы не сворачивалась.
 - **Медиа и громкость**: управление любым плеером, который поддерживает системные медиаэлементы Windows; ползунок громкости и отключение звука.
-- **Быстрые действия**: скриншот всего экрана (PNG в «Изображения\Glint» и в буфер), скриншот области через системные «Ножницы», пипетка (цвет под курсором), блокировка, папка загрузок, запуск закреплённых приложений.
+- **Быстрые действия**: скриншот всего экрана (PNG в «Изображения\Glint» и в буфер), скриншот области через системные «Ножницы», пипетка (цвет под курсором), блокировка, папка загрузок, запуск закреплённых приложений. Закрепить приложение можно кнопкой «+», перетащив ярлык на док или правым кликом по приложению в командной строке.
 - **История буфера обмена**: текст и картинки, поиск, закрепление, вставка в предыдущее окно по клику.
 - **Полка файлов**: перетащите файлы на пилюлю, чтобы отложить их, и вытащите обратно в любое приложение.
 - **Командная строка** (Alt+Space): поиск приложений и файлов, калькулятор, таймеры, поиск в интернете.
@@ -65,7 +65,7 @@ Glint — независимый проект с открытым исходны
 
 **Glint** is a small floating pill at the top center of the screen for Windows 10/11. It shows the clock and what's playing, and expands on hover into a panel with quick tools.
 
-**Features:** clock & media pill with flash messages; hover panel with tabs; media controls and volume; quick actions (full-screen screenshot saved to Pictures\Glint, region screenshot via the Windows Snipping Tool, eyedropper, lock, downloads); clipboard history with search, pinning and click-to-paste; file shelf with drag in/out; Alt+Space command bar (apps, files, calculator, timers, web search); text tools (keyboard layout fix, transliteration, case, JSON, Base64); system load tab (CPU total/per-thread/clock, GPU, RAM, disks, network, top processes, one-minute graphs; GPU temperature, VRAM, power and fan on NVIDIA; no CPU temperature, since Windows only exposes it to kernel drivers; sampling runs only while the tab is open); color themes (seven presets, custom HEX accents, background tint and opacity, applied live without a restart, tray icon included); auto-hide in fullscreen and selected apps; tray icon with autostart.
+**Features:** clock & media pill with flash messages; hover panel with tabs; media controls and volume; quick actions (full-screen screenshot saved to Pictures\Glint, region screenshot via the Windows Snipping Tool, eyedropper, lock, downloads) and a dock of pinned apps (the + button, drag a shortcut onto it, or right-click an app in the command bar); a playback indicator that also reacts to players that don't register with Windows media controls; clipboard history with search, pinning and click-to-paste; file shelf with drag in/out; Alt+Space command bar (apps, files, calculator, timers, web search); text tools (keyboard layout fix, transliteration, case, JSON, Base64); system load tab (CPU total/per-thread/clock, GPU, RAM, disks, network, top processes, one-minute graphs; GPU temperature, VRAM, power and fan on NVIDIA; no CPU temperature, since Windows only exposes it to kernel drivers; sampling runs only while the tab is open); color themes (seven presets, custom HEX accents, background tint and opacity, applied live without a restart, tray icon included); auto-hide in fullscreen and selected apps; tray icon with autostart.
 
 **Download:** [Glint.exe](https://github.com/sempik/glint/releases/latest/download/Glint.exe) — a single self-contained file, no installer and no .NET runtime needed. It isn't code-signed, so SmartScreen may warn on first run ("More info" → "Run anyway"). Release builds are produced by GitHub Actions from this repository.
 
