@@ -142,7 +142,7 @@ public partial class SystemPage : UserControl
         if (gpu.TemperatureC is double t)
         {
             GpuTemp.Text = $"{t:0} °C";
-            var key = t >= 85 ? "DangerBrush" : t >= 70 ? "WarningBrush" : "TextBrush";
+            var key = t >= 85 ? "DangerBrush" : t >= 70 ? "WarningTextBrush" : "TextBrush";
             if (!Equals(GpuTemp.Tag, key))
             {
                 GpuTemp.Tag = key;

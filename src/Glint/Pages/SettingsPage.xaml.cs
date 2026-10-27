@@ -42,6 +42,14 @@ public partial class SettingsPage : UserControl
         VersionText.Text = $"Glint {GetVersion()}";
         _themeDebounce.Tick += (_, _) => { _themeDebounce.Stop(); ThemeService.Apply(S); };
         BuildThemeControls();
+        BuildThemeModeButtons();
+        BuildCaptureControls();
+        BuildWeatherControls();
+        BuildVoiceControls();
+        BuildAgentControls();
+        BuildMascotControls();
+        WatchAvailableUpdate();
+        WatchOutsideChanges();
         LoadFromSettings();
         _loading = false;
     }
@@ -67,6 +75,13 @@ public partial class SettingsPage : UserControl
         HotkeyBox.Text = s.CommandBarHotkey;
 
         LoadThemeFromSettings();
+        LoadBehaviorSettings();
+        LoadIndicatorSettings();
+        LoadCaptureSettings();
+        LoadWeatherSettings();
+        LoadVoiceSettings();
+        LoadAgentSettings();
+        LoadMascotSettings();
 
         _hiddenApps.Clear();
         foreach (var app in s.HiddenInApps) _hiddenApps.Add(app);
@@ -193,8 +208,8 @@ public partial class SettingsPage : UserControl
                 CornerRadius = new CornerRadius(11),
                 Background = new System.Windows.Media.SolidColorBrush(tint.Color),
                 BorderThickness = new Thickness(1),
-                BorderBrush = (System.Windows.Media.Brush)FindResource("DividerBrush"),
             };
+            dot.SetResourceReference(Border.BorderBrushProperty, "DividerBrush");
             var ring = new Border
             {
                 Width = 30,
@@ -269,32 +284,35 @@ public partial class SettingsPage : UserControl
         ColorHint.SetResourceReference(TextBlock.ForegroundProperty, "DangerBrush");
     }
 
+    // Brushes go in by resource reference: the theme swaps them, and a light/dark switch would leave copied ones behind.
     void UpdateThemeSelection()
     {
-        var text = (System.Windows.Media.Brush)FindResource("TextBrush");
-        var muted = (System.Windows.Media.Brush)FindResource("MutedBrush");
-        var clear = System.Windows.Media.Brushes.Transparent;
         foreach (var (id, ring, check, label) in _presetViews)
         {
             var on = id == S.ThemePreset;
-            ring.BorderBrush = on ? text : clear;
+            SetRing(ring, on);
             check.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
-            label.Foreground = on ? text : muted;
+            label.SetResourceReference(TextBlock.ForegroundProperty, on ? "TextBrush" : "MutedBrush");
         }
         foreach (var (id, ring, label) in _tintViews)
         {
             var on = id == S.SurfaceTint;
-            ring.BorderBrush = on ? text : clear;
-            label.Foreground = on ? text : muted;
+            SetRing(ring, on);
+            label.SetResourceReference(TextBlock.ForegroundProperty, on ? "TextBrush" : "MutedBrush");
         }
+    }
+
+    static void SetRing(Border ring, bool on)
+    {
+        if (on) ring.SetResourceReference(Border.BorderBrushProperty, "TextBrush");
+        else ring.BorderBrush = System.Windows.Media.Brushes.Transparent;
     }
 
     void UpdateDotsTarget()
     {
         QuickDotsTarget.Text = _dotsTargetSecond ? "→ Акцент 2" : "→ Акцент 1";
-        var text = (System.Windows.Media.Brush)FindResource("TextBrush");
-        Accent1Swatch.BorderBrush = _dotsTargetSecond ? System.Windows.Media.Brushes.Transparent : text;
-        Accent2Swatch.BorderBrush = _dotsTargetSecond ? text : System.Windows.Media.Brushes.Transparent;
+        SetRing(Accent1Swatch, !_dotsTargetSecond);
+        SetRing(Accent2Swatch, _dotsTargetSecond);
     }
 
     void AccentBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
@@ -381,6 +399,7 @@ public partial class SettingsPage : UserControl
 
     void ThemeReset_Click(object sender, RoutedEventArgs e)
     {
+        // Colors only: the light/dark choice stays as it is.
         ThemeService.Reset(S);
         _loading = true;
         OpacitySlider.Value = Math.Round(S.SurfaceOpacity * 100);
@@ -461,7 +480,7 @@ public partial class SettingsPage : UserControl
         _capturing = true;
         HotkeyBox.Text = "Нажмите сочетание…";
         HotkeyHint.Text = "Esc — отмена";
-        HotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush");
+        HotkeyHint.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
     }
 
     void HotkeyBox_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
@@ -475,7 +494,38 @@ public partial class SettingsPage : UserControl
     void HotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (!_capturing) return;
+        switch (ReadGesture(e, out var gesture, out var error))
+        {
+            case GestureRead.Cancel:
+                EndCapture();
+                return;
+            case GestureRead.Error:
+                ShowHotkeyError(error!);
+                return;
+            case GestureRead.Done:
+                if (string.Equals(gesture, S.Voice.Hotkey, StringComparison.OrdinalIgnoreCase))
+                {
+                    ShowHotkeyError("Это сочетание уже у диктовки");
+                    return;
+                }
+                S.CommandBarHotkey = gesture;
+                Save();
+                HotkeyHint.Text = "Кликните по полю и нажмите новое сочетание";
+                EndCapture();
+                return;
+        }
+    }
 
+    enum GestureRead { Ignore, Wait, Cancel, Error, Done }
+
+    /// <summary>
+    /// Turns a key press in a hotkey box into "Ctrl+Alt+D". Wait: only a modifier so far; Ignore: Tab, let it move
+    /// focus. Shared by the command bar and dictation hotkey boxes.
+    /// </summary>
+    static GestureRead ReadGesture(KeyEventArgs e, out string gesture, out string? error)
+    {
+        gesture = string.Empty;
+        error = null;
         var key = e.Key switch
         {
             Key.System => e.SystemKey,
@@ -485,18 +535,14 @@ public partial class SettingsPage : UserControl
         };
 
         // Let Tab move focus normally.
-        if (key == Key.Tab && Keyboard.Modifiers == ModifierKeys.None) return;
+        if (key == Key.Tab && Keyboard.Modifiers == ModifierKeys.None) return GestureRead.Ignore;
         e.Handled = true;
 
-        if (key == Key.Escape)
-        {
-            EndCapture();
-            return;
-        }
+        if (key == Key.Escape) return GestureRead.Cancel;
 
         if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt
             or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin or Key.None)
-            return;
+            return GestureRead.Wait;
 
         var mods = Keyboard.Modifiers;
         var parts = new List<string>(5);
@@ -509,29 +555,25 @@ public partial class SettingsPage : UserControl
         var isFunctionKey = key >= Key.F1 && key <= Key.F24;
         if (parts.Count == 0 && !isFunctionKey)
         {
-            ShowHotkeyError("Нужен модификатор: Ctrl, Alt, Shift или Win");
-            return;
+            error = "Нужен модификатор: Ctrl, Alt, Shift или Win";
+            return GestureRead.Error;
         }
 
         parts.Add(key.ToString());
-        var gesture = string.Join("+", parts);
+        gesture = string.Join("+", parts);
 
         if (!HotkeyManager.TryParse(gesture, out _, out _))
         {
-            ShowHotkeyError("Это сочетание не поддерживается");
-            return;
+            error = "Это сочетание не поддерживается";
+            return GestureRead.Error;
         }
-
-        S.CommandBarHotkey = gesture;
-        Save();
-        HotkeyHint.Text = "Кликните по полю и нажмите новое сочетание";
-        EndCapture();
+        return GestureRead.Done;
     }
 
     void ShowHotkeyError(string message)
     {
         HotkeyHint.Text = message;
-        HotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("DangerBrush");
+        HotkeyHint.SetResourceReference(TextBlock.ForegroundProperty, "DangerBrush");
     }
 
     void EndCapture()
@@ -545,7 +587,7 @@ public partial class SettingsPage : UserControl
     void HotkeyReset_Click(object sender, RoutedEventArgs e)
     {
         HotkeyHint.Text = "Кликните по полю и нажмите новое сочетание";
-        HotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush");
+        HotkeyHint.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
         if (S.CommandBarHotkey == DefaultHotkey) return;
         S.CommandBarHotkey = DefaultHotkey;
         HotkeyBox.Text = DefaultHotkey;

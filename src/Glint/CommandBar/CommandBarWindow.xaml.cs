@@ -6,6 +6,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Glint.Core;
+using Glint.Services.Voice;
 
 namespace Glint.CommandBar;
 
@@ -20,8 +21,16 @@ public partial class CommandBarWindow : Window
 
     readonly Calculator _calculator = new();
     readonly TimerProvider _timers = new();
+    readonly CurrencyProvider _currency = new();
+    readonly NotesProvider _noteCreate = new(NotesProvider.Mode.Create);
+    readonly NotesProvider _noteSearch = new(NotesProvider.Mode.Search);
+    readonly ScreenToolsProvider _screen = new();
+    readonly WeatherProvider _weather = new();
+    readonly VoiceProvider _voice = new();
     readonly SystemCommands _system = new();
     readonly WebSearchProvider _web = new();
+    readonly TextBoxDictationTarget _dictation;
+    readonly string _placeholderText;
 
     readonly DispatcherTimer _debounce = new() { Interval = TimeSpan.FromMilliseconds(60) };
     readonly List<Border> _rows = new();
@@ -35,6 +44,7 @@ public partial class CommandBarWindow : Window
     public CommandBarWindow()
     {
         InitializeComponent();
+        SoftShadow.Fill(BarShadow, BarBorder.CornerRadius.TopLeft, rings: 10, depth: 6, strength: 0.32);
 
         _debounce.Tick += (_, _) => { _debounce.Stop(); _ = RefreshAsync(); };
         QueryBox.TextChanged += (_, _) =>
@@ -46,6 +56,18 @@ public partial class CommandBarWindow : Window
         PreviewKeyDown += OnPreviewKeyDown;
         Deactivated += (_, _) => HideBar();
         AppServices.Settings.Changed += (_, _) => { if (IsVisible) ApplyLayout(); };
+        // Rates arrive a moment after "100 usd" is typed; show them without another keystroke.
+        Glint.Services.CurrencyRates.Shared.Updated += (_, _) => Dispatcher.BeginInvoke(() => { if (IsVisible) _ = RefreshAsync(); });
+
+        // Dictated words go into the query box like typed ones; the phrase being heard shows in the placeholder.
+        _placeholderText = Placeholder.Text;
+        _dictation = new TextBoxDictationTarget(QueryBox, "Командная строка", ShowVoicePreview);
+        MicButton.Click += (_, _) =>
+        {
+            QueryBox.Focus();
+            DictationService.Shared.Toggle(_dictation);
+        };
+        DictationService.Shared.Changed += (_, _) => UpdateMic();
 
         AppIndex.Shared.Start();
         FileIndex.Shared.Start();
@@ -97,7 +119,19 @@ public partial class CommandBarWindow : Window
         if (!IsVisible) return;
         _debounce.Stop();
         _searchCts?.Cancel();
+        // Words for a box that is going away would only end up on the clipboard.
+        DictationService.Shared.StopFor(_dictation);
         Hide();
+    }
+
+    void ShowVoicePreview(string? text) => Placeholder.Text = text is null ? _placeholderText : "Слышу: " + text;
+
+    void UpdateMic()
+    {
+        var mine = ReferenceEquals(DictationService.Shared.Target, _dictation);
+        MicIcon.SetResourceReference(TextBlock.ForegroundProperty, mine ? "DangerBrush" : "MutedBrush");
+        MicButton.ToolTip = mine ? "Закончить диктовку" : "Сказать запрос голосом";
+        if (!mine) Placeholder.Text = _placeholderText;
     }
 
     void ApplyLayout()
@@ -147,22 +181,32 @@ public partial class CommandBarWindow : Window
         var q = query.Trim();
         if (q.Length == 0)
         {
-            return Run(_timers, q, ct)
-                .Concat(SystemCommands.QuickSuggestions())
-                .Concat(SafeList(() => AppIndex.Shared.Recent(3)))
-                .Take(MaxRows)
-                .ToList();
+            // Reminders keep for up to a year, and Enter on one cancels it: so only the two soonest, and never in the
+            // first, pre-selected row. "таймер" lists them all.
+            var quick = ScreenToolsProvider.QuickSuggestions().Concat(SystemCommands.QuickSuggestions()).ToList();
+            var reminders = Run(_timers, q, ct).Take(2).ToList();
+            var recent = SafeList(() => AppIndex.Shared.Recent(Math.Clamp(MaxRows - quick.Count - reminders.Count, 0, 3)));
+            return quick.Concat(recent).Concat(reminders).Take(MaxRows).ToList();
         }
 
         if (q.StartsWith('>')) return Run(_system, q, ct).Take(MaxRows).ToList();
 
-        // Fixed group order: calculator, timers, apps, files, system; the web fallback always keeps the last slot.
+        // Fixed group order: calculator, currency, timers, quick note, screen tools, weather, dictation, apps,
+        // files, found notes, system; the web fallback always keeps the last slot. Weather and dictation matched
+        // by a bare keyword prefix ("про", "voi") are more likely an app being typed, so they go after the apps.
+        var keywords = Run(_weather, q, ct).Concat(Run(_voice, q, ct)).ToList();
         var groups = new IEnumerable<CommandResult>[]
         {
             Run(_calculator, q, ct),
+            Run(_currency, q, ct).Take(3),
             Run(_timers, q, ct),
+            Run(_noteCreate, q, ct),
+            Run(_screen, q, ct).Take(3),
+            keywords.Where(r => !r.PrefixOnly),
             Run(AppIndex.Shared, q, ct).Take(5),
+            keywords.Where(r => r.PrefixOnly),
             Run(FileIndex.Shared, q, ct).Take(5),
+            Run(_noteSearch, q, ct).Take(3),
             Run(_system, q, ct).Take(3),
         };
         var tail = Run(_web, q, ct);
@@ -402,6 +446,18 @@ public partial class CommandBarWindow : Window
         if ((mode == ExecMode.RevealFolder && r.Path is null) || (mode == ExecMode.Elevated && r.ExecuteElevated is null))
         {
             AppServices.Notifier.Flash("Недоступно для этого результата", r.Title, Glyphs.Info);
+            return;
+        }
+        if (r.KeepsBarOpen)
+        {
+            try
+            {
+                r.Execute();
+            }
+            catch (Exception ex)
+            {
+                App.LogError(ex);
+            }
             return;
         }
         // Hide first so the launched app (or the previous window) gets the foreground.

@@ -145,7 +145,8 @@ public sealed class AudioActivity : IDisposable
         }
     }
 
-    static class Interop
+    // Internal: AudioPeakMeter reads the same meter interface on the whole endpoint.
+    internal static class Interop
     {
         [ComImport, Guid("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
         public interface IAudioSessionManager2

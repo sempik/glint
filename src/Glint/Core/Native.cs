@@ -54,10 +54,29 @@ public static class Native
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint modifiers, uint vk);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
+    [DllImport("user32.dll")] static extern short GetAsyncKeyState(int vk);
+
+    /// <summary>
+    /// Waits (at most <paramref name="max"/>) until Shift, Ctrl, Alt and Win are all up. Keys sent while the user
+    /// still holds a hotkey would combine with it: Ctrl+V under a held Alt is Ctrl+Alt+V.
+    /// </summary>
+    public static async Task WaitForModifiersReleasedAsync(TimeSpan max)
+    {
+        var until = DateTime.UtcNow + max;
+        while (DateTime.UtcNow < until && new[] { 0x10, 0x11, 0x12, 0x5B, 0x5C }.Any(vk => GetAsyncKeyState(vk) < 0))
+            await Task.Delay(50);
+    }
+
     public static void AddExStyle(IntPtr hwnd, int flags)
     {
         var style = GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64();
         SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(style | (long)flags));
+    }
+
+    public static void RemoveExStyle(IntPtr hwnd, int flags)
+    {
+        var style = GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64();
+        SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(style & ~(long)flags));
     }
 
     public static string GetClassName(IntPtr hwnd)

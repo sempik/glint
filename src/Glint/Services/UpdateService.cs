@@ -9,9 +9,10 @@ namespace Glint.Services;
 public sealed record UpdateInfo(Version Version, string Tag, string ExeUrl, string? SumsUrl, string PageUrl);
 
 /// <summary>
-/// Updates Glint from the latest GitHub release. Runs only when the user presses the button: no background
-/// checks. The new exe is verified against the release's SHA256SUMS.txt, then swapped in by renaming the
-/// running file (Windows allows renaming, not overwriting, a running exe) and started with --updated.
+/// Updates Glint from the latest GitHub release. Checks run when the user presses the button, or, only if
+/// Настройки → «Проверять обновления автоматически» is on, from <see cref="UpdateWatcher"/>. The new exe is verified
+/// against the release's SHA256SUMS.txt, then swapped in by renaming the running file (Windows allows renaming,
+/// not overwriting, a running exe) and started with --updated.
 /// </summary>
 public static class UpdateService
 {
@@ -48,8 +49,25 @@ public static class UpdateService
     public static bool CanSelfUpdate =>
         string.IsNullOrEmpty(typeof(UpdateService).Assembly.Location) && Environment.ProcessPath is not null;
 
+    /// <summary>Newer release found by the last successful check (button or automatic), else null.</summary>
+    public static UpdateInfo? Available { get; private set; }
+
+    /// <summary>Raised on the checking thread when <see cref="Available"/> changes.</summary>
+    public static event EventHandler? AvailableChanged;
+
     /// <summary>The latest release if it is newer than this build, otherwise null.</summary>
     public static async Task<UpdateInfo?> CheckAsync(CancellationToken ct = default)
+    {
+        var found = await FetchLatestAsync(ct);
+        if (found?.Version != Available?.Version)
+        {
+            Available = found;
+            AvailableChanged?.Invoke(null, EventArgs.Empty);
+        }
+        return found;
+    }
+
+    static async Task<UpdateInfo?> FetchLatestAsync(CancellationToken ct)
     {
         using var response = await Http.GetAsync(LatestApi, ct);
         response.EnsureSuccessStatusCode();

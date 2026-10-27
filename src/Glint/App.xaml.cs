@@ -4,6 +4,7 @@ using Glint.CommandBar;
 using Glint.Core;
 using Glint.Pill;
 using Glint.Services;
+using Glint.Services.Indicators;
 
 namespace Glint;
 
@@ -16,6 +17,8 @@ public partial class App : Application
     HotkeyManager? _hotkeys;
     int? _commandBarHotkeyId;
     string? _registeredHotkey;
+    int? _voiceHotkeyId;
+    string? _registeredVoiceHotkey;
     TrayIconService? _tray;
 
     /// <summary>Set once the user chose Exit; windows that normally refuse to close check it.</summary>
@@ -68,19 +71,35 @@ public partial class App : Application
         var hwnd = new WindowInteropHelper(_pill).Handle;
         clipboard.Start(hwnd);
 
+        // Pending timers and reminders from the last run; ones that came due while Glint was closed flash now.
+        ReminderService.Shared.Start();
+
         _commandBar = new CommandBarWindow();
         AppServices.ToggleCommandBar = () => _commandBar.Toggle();
 
         _hotkeys = new HotkeyManager(hwnd);
         RegisterCommandBarHotkey();
+        RegisterVoiceHotkey();
         // Only re-register when the gesture really changed, so a taken hotkey isn't reported on every save.
         settings.Changed += (_, _) =>
         {
             if (AppServices.Settings.Current.CommandBarHotkey != _registeredHotkey) RegisterCommandBarHotkey();
+            if (AppServices.Settings.Current.Voice.Hotkey != _registeredVoiceHotkey) RegisterVoiceHotkey();
         };
 
         _tray = new TrayIconService(onExit: ExitApp);
         AppServices.SystemNotify = _tray.ShowBalloon;
+
+        // Pill indicators (mic/camera, keyboard, downloads, OBS, VPN...) and synced lyrics; each part runs
+        // only if enabled in Настройки → Индикаторы.
+        IndicatorHub.Shared.Start();
+        LyricsService.Shared.Start();
+        // Off unless Настройки → «Проверять обновления автоматически» is on; then at launch and every 6 hours.
+        new UpdateWatcher().Start();
+        // Off until a city is chosen in Настройки → Погода; then a forecast every 30 minutes.
+        Glint.Services.Weather.WeatherService.Shared.Start();
+        // Off until Claude Code or Codex is connected in Настройки → Агенты; then one idle named-pipe accept.
+        Glint.Services.Agents.AgentHub.Shared.Start();
 
         try
         {
@@ -115,6 +134,22 @@ public partial class App : Application
             AppServices.Notifier.Flash("Горячая клавиша занята", gesture, Glyphs.Info, TimeSpan.FromSeconds(4));
     }
 
+    /// <summary>Optional global dictation hotkey (Настройки → Голосовой ввод); none by default.</summary>
+    void RegisterVoiceHotkey()
+    {
+        if (_hotkeys is null) return;
+        if (_voiceHotkeyId is int old) _hotkeys.Unregister(old);
+        _voiceHotkeyId = null;
+        var gesture = AppServices.Settings.Current.Voice.Hotkey;
+        _registeredVoiceHotkey = gesture;
+        if (string.IsNullOrWhiteSpace(gesture)) return;
+        // The window in front when the keys are pressed is where the words go.
+        _voiceHotkeyId = _hotkeys.Register(gesture, () =>
+            Glint.Services.Voice.DictationService.Shared.ToggleForWindow(Glint.Services.Voice.DictationService.ForegroundTarget()));
+        if (_voiceHotkeyId is null)
+            AppServices.Notifier.Flash("Горячая клавиша диктовки занята", gesture, Glyphs.Microphone, TimeSpan.FromSeconds(4));
+    }
+
     static bool WaitForPreviousInstance(Mutex mutex)
     {
         try
@@ -131,10 +166,20 @@ public partial class App : Application
     internal void ExitApp()
     {
         IsExiting = true;
+        // The note being typed is saved a moment after typing stops; don't lose that moment.
+        Glint.Pages.NotesPage.FlushAll();
+        // A screen recording still running gets its MP4 finished, so the file stays playable.
+        Glint.Capture.ScreenTools.StopRecordingForExit();
+        // Lets go of the microphone.
+        Glint.Services.Voice.DictationService.Shared.Stop();
+        // Closes the agent pipe; hooks still waiting get no answer and their agents ask in the terminal.
+        Glint.Services.Agents.AgentHub.Shared.Dispose();
         _hotkeys?.Dispose();
         _tray?.Dispose();
         (AppServices.Volume as IDisposable)?.Dispose();
         AudioActivity.Shared.Dispose();
+        // Unhooks the keyboard and stops the watchers.
+        IndicatorHub.Shared.Dispose();
         // Releases NVML and the PDH query; only if the Система tab was ever opened.
         if (SystemMonitor.IsSharedCreated) SystemMonitor.Shared.Dispose();
         Shutdown();
@@ -143,6 +188,15 @@ public partial class App : Application
     protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
     {
         IsExiting = true;
+        try
+        {
+            Glint.Pages.NotesPage.FlushAll();
+            Glint.Capture.ScreenTools.StopRecordingForExit();
+        }
+        catch (Exception ex)
+        {
+            LogError(ex);
+        }
         base.OnSessionEnding(e);
     }
 

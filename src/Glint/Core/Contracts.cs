@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Windows.Media;
 
 namespace Glint.Core;
@@ -13,6 +13,12 @@ public interface IPillNotifier
     /// never expires and is never replaced by later flashes.
     /// </summary>
     void FlashImportant(string title, string? subtitle = null, string glyph = Glyphs.Info, TimeSpan? duration = null);
+
+    /// <summary>
+    /// A flash the user can click (e.g. "Загружено" opens the file). Hovering it doesn't open the panel
+    /// and holds the countdown, so there is time to aim.
+    /// </summary>
+    void FlashClickable(string title, string? subtitle, string glyph, Action onClick, TimeSpan? duration = null);
 }
 
 public sealed record MediaInfo(
@@ -68,6 +74,13 @@ public interface IClipboardService
     void Start(IntPtr hwnd);
     /// <summary>Put the entry on the clipboard, focus the window the user was typing in before, and send Ctrl+V.</summary>
     void PasteToPreviousWindow(ClipEntry entry);
+    /// <summary>
+    /// Pastes plain text into a given window the same way (clipboard + Ctrl+V), without adding it to the history,
+    /// then puts back what was on the clipboard before. Used by dictation.
+    /// </summary>
+    void PasteTextTo(IntPtr target, string text);
+    /// <summary>The last foreign window that had the foreground (where history entries get pasted).</summary>
+    IntPtr PreviousWindow { get; }
     void CopyOnly(ClipEntry entry);
     void TogglePin(ClipEntry entry);
     void Remove(ClipEntry entry);
@@ -144,4 +157,49 @@ public static class Glyphs
     public const string Lock = "";
     public const string Image = "";
     public const string Gauge = "\uE9D9";
+    // Pill indicators
+    public const string Microphone = "\uE720";
+    public const string Webcam = "\uE714";
+    public const string Keyboard = "\uE765";
+    public const string Record = "\uE7C8";
+    public const string Shield = "\uEA18";
+    public const string Game = "\uE7FC";
+    public const string Bell = "\uEA8F";
+    // Пульт (control centre)
+    public const string Sliders = "\uE9E9";
+    public const string Wifi = "\uE701";
+    public const string Bluetooth = "\uE702";
+    public const string Headphones = "\uE7F6";
+    public const string Speaker = "\uE7F5";
+    public const string Vpn = "\uE705";
+    public const string Sun = "\uE706";
+    public const string Moon = "\uE708";
+    // Notes, reminders, currency
+    public const string Note = "\uE70B";
+    public const string Currency = "\uE8C7";
+    // Screen tools: screenshot editor, text from screen, recording
+    public const string Pen = "\uE70F";
+    public const string Highlighter = "\uE7E6";
+    public const string Arrow = "\uE72A";
+    public const string Rectangle = "\uE739";
+    public const string Ellipse = "\uEA3A";
+    public const string Font = "\uE8D2";
+    public const string Redact = "\uED1A";
+    public const string Crop = "\uE7A8";
+    public const string Undo = "\uE7A7";
+    public const string Redo = "\uE7A6";
+    public const string Save = "\uE74E";
+    public const string More = "\uE712";
+    public const string Stop = "\uE71A";
+    public const string ScanText = "\uE8C1";
+    public const string Link = "\uE71B";
+    public const string Monitor = "\uE7F4";
+    // Weather and voice input
+    public const string Cloud = "\uE753";
+    public const string Refresh = "\uE72C";
+    public const string MapPin = "\uE81D";
+    // Coding agents (Claude Code, Codex)
+    public const string Agent = "\uE99A";
+    public const string Terminal = "\uE756";
+    public const string Question = "\uE897";
 }

@@ -56,6 +56,10 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="StatsText" Style="{StaticResource MutedText}" VerticalAlignment="Center"/>
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <!-- Dictation into the editor at the caret; pressed again (or a pause) finishes it. -->
+                    <Button x:Name="MicButton" Focusable="False" Style="{StaticResource GhostButton}" Padding="8,5" ToolTip="Надиктовать текст" Click="MicButton_Click">
+                        <TextBlock x:Name="MicIcon" Style="{StaticResource Icon}" FontSize="13"/>
+                    </Button>
                     <Button x:Name="PasteButton" Focusable="False" Style="{StaticResource GhostButton}" Padding="8,5" ToolTip="Вставить из буфера" Click="PasteButton_Click">
                         <TextBlock x:Name="PasteIcon" Style="{StaticResource Icon}" FontSize="13"/>
                     </Button>
@@ -77,16 +81,20 @@
             </Grid.RowDefinitions>
 
             <Border Background="{DynamicResource CardBrush}" CornerRadius="12" Padding="3" HorizontalAlignment="Stretch">
-                <UniformGrid Columns="2">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
                     <RadioButton x:Name="ToolsTab" Style="{StaticResource TabButton}" GroupName="TextToolsMode" IsChecked="True" Checked="ModeTab_Checked">
                         <TextBlock Text="Инструменты" FontSize="12" HorizontalAlignment="Center"
                                    Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
                     </RadioButton>
-                    <RadioButton x:Name="EncodingTab" Style="{StaticResource TabButton}" GroupName="TextToolsMode" Checked="ModeTab_Checked">
+                    <RadioButton x:Name="EncodingTab" Grid.Column="1" Style="{StaticResource TabButton}" GroupName="TextToolsMode" Checked="ModeTab_Checked">
                         <TextBlock Text="Кодирование" FontSize="12" HorizontalAlignment="Center"
                                    Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
                     </RadioButton>
-                </UniformGrid>
+                </Grid>
             </Border>
 
             <ScrollViewer Grid.Row="1" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">

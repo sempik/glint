@@ -22,6 +22,10 @@ public sealed class CommandResult
     public Action? ExecuteElevated { get; init; }
     /// <summary>Offers "pin to Home" in the row's context menu; uses <see cref="Path"/>.</summary>
     public bool CanPin { get; init; }
+    /// <summary>Execute runs with the bar still open, for an action whose result shows inside the bar.</summary>
+    public bool KeepsBarOpen { get; init; }
+    /// <summary>Matched only the start of a keyword ("про" for "прогноз"); the bar lists it after apps.</summary>
+    public bool PrefixOnly { get; init; }
 }
 
 public interface ICommandProvider

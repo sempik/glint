@@ -5,6 +5,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Glint.Core;
 using Glint.Services;
+using Glint.Services.Voice;
 
 namespace Glint.Pages;
 
@@ -14,10 +15,17 @@ public partial class TextToolsPage : UserControl
     const string PasteGlyph = "\uE77F";
 
     readonly DispatcherTimer _statusTimer = new() { Interval = TimeSpan.FromSeconds(2.5) };
+    readonly TextBoxDictationTarget _dictation;
 
     public TextToolsPage()
     {
         InitializeComponent();
+
+        _dictation = new TextBoxDictationTarget(Input, "Текст");
+        MicIcon.Text = Glyphs.Microphone;
+        // The pill caches pages; follow dictation only while attached.
+        Loaded += (_, _) => { DictationService.Shared.Changed -= OnDictationChanged; DictationService.Shared.Changed += OnDictationChanged; UpdateMic(); };
+        Unloaded += (_, _) => DictationService.Shared.Changed -= OnDictationChanged;
 
         PasteIcon.Text = PasteGlyph;
         CopyIcon.Text = Glyphs.Copy;
@@ -72,9 +80,8 @@ public partial class TextToolsPage : UserControl
     {
         // Fires once during InitializeComponent, before the grids exist.
         if (ToolsGrid is null || EncodingGrid is null) return;
-        var tools = sender == ToolsTab;
-        ToolsGrid.Visibility = tools ? Visibility.Visible : Visibility.Collapsed;
-        EncodingGrid.Visibility = tools ? Visibility.Collapsed : Visibility.Visible;
+        ToolsGrid.Visibility = sender == ToolsTab ? Visibility.Visible : Visibility.Collapsed;
+        EncodingGrid.Visibility = sender == EncodingTab ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ───────────── Actions ─────────────
@@ -158,6 +165,34 @@ public partial class TextToolsPage : UserControl
     {
         Input.Clear();
         HideStatus();
+    }
+
+    // ───────────── Dictation ─────────────
+
+    void MicButton_Click(object sender, RoutedEventArgs e)
+    {
+        // The caret marks where the words go, and a focused editor keeps the panel open while it listens.
+        if (!Input.IsKeyboardFocused)
+        {
+            Input.Focus();
+            Input.Select(Input.Text.Length, 0);
+        }
+        DictationService.Shared.Toggle(_dictation);
+    }
+
+    // Raised on the UI thread.
+    void OnDictationChanged(object? sender, EventArgs e) => UpdateMic();
+
+    void UpdateMic()
+    {
+        var d = DictationService.Shared;
+        var mine = ReferenceEquals(d.Target, _dictation);
+        MicIcon.SetResourceReference(TextBlock.ForegroundProperty, mine ? "DangerBrush" : "TextBrush");
+        MicButton.ToolTip = mine ? "Закончить диктовку" : "Надиктовать текст";
+        // The phrase being heard shows in place of the counters until it lands in the editor.
+        if (mine && d.Partial is { } partial) StatsText.Text = "Слышу: " + partial;
+        else if (mine) StatsText.Text = d.IsStarting ? "Включаю микрофон…" : "Говорите — пауза или кнопка закончат";
+        else UpdateStats();
     }
 
     static bool TryCopy(string text)

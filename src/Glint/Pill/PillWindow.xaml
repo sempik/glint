@@ -23,24 +23,18 @@
             </Grid.LayoutTransform>
 
             <!--
-                Surface, stroke and shadow live on their own cached layer that follows Shell's size. Rendering is
-                software-only, and with the blur on Shell itself every tick of the equalizer or the progress bar
-                re-blurred the whole panel on the CPU; now the blur is redone only when the size changes.
+                Surface, stroke and shadow sit on their own non-hit-testable layer that follows Shell's size.
+                Rendering is software-only, where a blur effect costs 100-200 ms per redraw of the panel and
+                stalled the open/close animation; the shadow is a handful of 1-DIP rings instead.
             -->
-            <!-- The cache sits on a wrapper so the blurred shadow is part of the cached bitmap. -->
-            <Grid IsHitTestVisible="False" Margin="20,8,20,30" VerticalAlignment="Top" HorizontalAlignment="Center">
-                <Grid.CacheMode>
-                    <BitmapCache x:Name="ShellCache" SnapsToDevicePixels="True"/>
-                </Grid.CacheMode>
+            <Grid x:Name="ShellLayer" IsHitTestVisible="False" Margin="20,8,20,30" VerticalAlignment="Top" HorizontalAlignment="Center">
+                <!-- Soft shadow drawn as faint rings around the surface (PillWindow.Shadow.cs), not a blur effect. -->
+                <Grid x:Name="ShadowRings"/>
                 <Border x:Name="ShellBackground"
                         Width="{Binding Width, ElementName=Shell}" Height="{Binding Height, ElementName=Shell}"
                         CornerRadius="{Binding CornerRadius, ElementName=Shell}"
                         Background="{DynamicResource SurfaceBrush}"
-                        BorderBrush="{DynamicResource AccentStrokeBrush}" BorderThickness="1">
-                    <Border.Effect>
-                        <DropShadowEffect x:Name="ShellShadow" BlurRadius="26" ShadowDepth="6" Direction="270" Opacity="0.45" Color="#000000"/>
-                    </Border.Effect>
-                </Border>
+                        BorderBrush="{DynamicResource AccentStrokeBrush}" BorderThickness="1"/>
             </Grid>
 
             <!-- Transparent (not null) background keeps the whole shell hit-testable for hover and drops. -->
@@ -51,15 +45,29 @@
                     Background="Transparent" BorderThickness="1">
 
                 <Grid>
-                    <!-- Collapsed pill: indicator · clock · equalizer -->
+                    <!--
+                        The 8-DIP gap above the shell counts as the pill for hovering: a cursor pushed against the top
+                        edge (how a tucked pill is called back) would otherwise sit just above it and the panel would
+                        not open until the mouse moved down. Nearly invisible alpha, because a layered window lets
+                        clicks fall through fully transparent pixels.
+                    -->
+                    <Border x:Name="HoverLip" Margin="0,-9,0,0" Height="9" VerticalAlignment="Top" Background="#01000000"/>
+
+                    <!-- Collapsed pill: (character) · indicator · clock · equalizer · (character) -->
                     <Grid x:Name="PillView" Margin="12,0" Background="Transparent">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="22"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="22"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <Grid Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                        <!-- The character sits in one of these, at the end Настройки → Персонаж picks (PillWindow.Mascot.cs). -->
+                        <Border x:Name="MascotSlotLeft" Grid.Column="0" VerticalAlignment="Center"/>
+                        <Border x:Name="MascotSlotRight" Grid.Column="4" VerticalAlignment="Center"/>
+
+                        <Grid Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Left">
                             <Border x:Name="PillArt" Width="20" Height="20" CornerRadius="6" Visibility="Collapsed">
                                 <Border.Background>
                                     <ImageBrush x:Name="PillArtBrush" Stretch="UniformToFill"/>
@@ -68,11 +76,60 @@
                             <Ellipse x:Name="PillDot" Width="8" Height="8" Fill="{DynamicResource AccentFillBrush}"/>
                         </Grid>
 
-                        <TextBlock x:Name="ClockText" Grid.Column="1"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                                   FontSize="13" FontWeight="SemiBold" Text="00:00"/>
+                        <!-- Clock, then the current lyrics line and live indicator badges when there are any. -->
+                        <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock x:Name="ClockText" VerticalAlignment="Center"
+                                       FontSize="13" FontWeight="SemiBold" Text="00:00"/>
+                            <!-- Weather icon and temperature; takes turns with the clock when the pill is crowded. -->
+                            <StackPanel x:Name="PillWeather" Orientation="Horizontal" VerticalAlignment="Center" Margin="9,0,0,0"
+                                        Background="Transparent" Visibility="Collapsed">
+                                <ContentControl x:Name="PillWeatherIcon" Width="16" Height="16" VerticalAlignment="Center"
+                                                Focusable="False" IsHitTestVisible="False"/>
+                                <TextBlock x:Name="PillWeatherTemp" Margin="4,0,0,0" FontSize="13" FontWeight="SemiBold"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <!-- Fixed width (LyricsExtraWidth reserves it): a longer or shorter line must not slide the clock. -->
+                            <TextBlock x:Name="PillLyric" Style="{StaticResource MutedText}" FontSize="12"
+                                       VerticalAlignment="Center" Margin="9,0,0,0" Width="160" TextAlignment="Left"
+                                       TextTrimming="CharacterEllipsis" Visibility="Collapsed"/>
+                            <StackPanel x:Name="PillIndicators" Orientation="Horizontal" VerticalAlignment="Center"/>
+                            <!-- Screen recording: red dot and running time; a click stops it. -->
+                            <Border x:Name="PillRec" Margin="7,0,0,0" Padding="6,2,7,2" CornerRadius="9" VerticalAlignment="Center"
+                                    Background="Transparent" Cursor="Hand" Visibility="Collapsed" ToolTip="Остановить запись экрана">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse x:Name="PillRecDot" Width="8" Height="8" Fill="{DynamicResource DangerBrush}" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="PillRecTime" Margin="5,0,0,0" FontSize="12" FontWeight="SemiBold"
+                                               VerticalAlignment="Center" Text="0:00"/>
+                                </StackPanel>
+                            </Border>
+                            <!-- Dictation: a pulsing mic and the phrase being heard; a click finishes it. -->
+                            <Border x:Name="PillVoice" Margin="7,0,0,0" Padding="6,2,8,2" CornerRadius="9" VerticalAlignment="Center"
+                                    Background="Transparent" Cursor="Hand" Visibility="Collapsed" ToolTip="Закончить диктовку">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock x:Name="PillVoiceIcon" Style="{StaticResource Icon}" FontSize="12" Text="&#xE720;"
+                                               Foreground="{DynamicResource DangerBrush}" VerticalAlignment="Center"/>
+                                    <!-- Fixed width (VoiceWidth reserves it): a growing phrase must not slide the clock. -->
+                                    <TextBlock x:Name="PillVoiceText" Margin="6,0,0,0" FontSize="12" Width="190" TextAlignment="Left"
+                                               VerticalAlignment="Center" Text="Слушаю…"/>
+                                </StackPanel>
+                            </Border>
+                            <!-- Coding agents (Claude Code, Codex): state dot, project and state; a click opens the Агенты tab. -->
+                            <Border x:Name="PillAgent" Margin="7,0,0,0" Padding="6,2,8,2" CornerRadius="9" VerticalAlignment="Center"
+                                    Background="Transparent" Cursor="Hand" Visibility="Collapsed">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse x:Name="PillAgentDot" Width="7" Height="7" VerticalAlignment="Center"
+                                             Fill="{DynamicResource AccentBrush}"/>
+                                    <TextBlock x:Name="PillAgentText" Margin="6,0,0,0" FontSize="12" MaxWidth="170"
+                                               VerticalAlignment="Center"/>
+                                    <!-- "+2": other sessions; never trimmed, only the project part above is. -->
+                                    <TextBlock x:Name="PillAgentMore" Margin="4,0,0,0" FontSize="12" TextTrimming="None"
+                                               VerticalAlignment="Center" Visibility="Collapsed"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
 
-                        <StackPanel x:Name="Equalizer" Grid.Column="2" Orientation="Horizontal"
+                        <StackPanel x:Name="Equalizer" Grid.Column="3" Orientation="Horizontal"
                                     Height="14" VerticalAlignment="Center" HorizontalAlignment="Right"
                                     Visibility="Collapsed"/>
                     </Grid>
@@ -92,8 +149,17 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- Expanded panel -->
-                    <Grid x:Name="PanelView" Margin="14,10,14,14" Visibility="Collapsed" Opacity="0">
+                    <!-- Agent request: what a coding agent wants to do and the answer buttons (PillWindow.Agents.cs). -->
+                    <Border x:Name="RequestView" Margin="16,12,16,14" Visibility="Collapsed" Opacity="0"
+                            Background="Transparent" ClipToBounds="True"/>
+
+                    <!--
+                        Expanded panel. It always has its final size and the growing shell only uncovers it, so the
+                        open/close animation never lays the page out again; at 200% that relayout per frame was the lag.
+                    -->
+                    <Border x:Name="PanelClip" Margin="14,10,14,14" ClipToBounds="True">
+                    <Grid x:Name="PanelView" Width="650" Height="374" HorizontalAlignment="Center" VerticalAlignment="Top"
+                          Visibility="Collapsed" Opacity="0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
@@ -102,11 +168,13 @@
                         <!-- Empty header space drags the pill along the top edge (buttons and tabs keep their clicks). -->
                         <DockPanel x:Name="PanelHeader" LastChildFill="True" Background="Transparent">
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <!-- Live indicator chips (mic, VPN, downloads...), filled in code; hover for details. -->
+                                <StackPanel x:Name="HeaderIndicators" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,4,0"/>
                                 <Button x:Name="CommandBarButton" Style="{StaticResource GhostButton}" Padding="8,5" ToolTip="Командная строка">
-                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE721;" FontSize="13" Foreground="{StaticResource MutedBrush}"/>
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE721;" FontSize="13" Foreground="{DynamicResource MutedBrush}"/>
                                 </Button>
                                 <Button x:Name="PinButton" Style="{StaticResource GhostButton}" Padding="8,5" ToolTip="Не сворачивать">
-                                    <TextBlock x:Name="PinIcon" Style="{StaticResource Icon}" Text="&#xE718;" FontSize="13" Foreground="{StaticResource MutedBrush}"/>
+                                    <TextBlock x:Name="PinIcon" Style="{StaticResource Icon}" Text="&#xE718;" FontSize="13" Foreground="{DynamicResource MutedBrush}"/>
                                 </Button>
                             </StackPanel>
                             <StackPanel x:Name="TabStrip" Orientation="Horizontal"/>
@@ -114,6 +182,7 @@
 
                         <ContentControl x:Name="PageHost" Grid.Row="1" Margin="0,10,0,0" Focusable="False"/>
                     </Grid>
+                    </Border>
                 </Grid>
             </Border>
         </Grid>

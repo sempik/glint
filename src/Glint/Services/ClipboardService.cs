@@ -16,12 +16,20 @@ public sealed class ClipboardService : IClipboardService
     const string DataFile = "clipboard.json";
     const int MaxTextLength = 1_000_000;
     const long MaxImagePixels = 40_000_000;
+    // The copy kept across a dictation paste is made on the UI thread; bigger images aren't put back.
+    const long MaxRestorePixels = 16_000_000;
 
     static readonly string ClipsDir = Path.Combine(SettingsStore.DataDir, "clips");
 
     // Password managers and other privacy-aware apps tag sensitive data with these formats.
     static readonly string[] PrivateFormats = { "ExcludeClipboardContentFromMonitorProcessing", "Clipboard Viewer Ignore" };
     const string HistoryFormat = "CanIncludeInClipboardHistory";
+    // Remote desktops and VMs fetch the clipboard over the wire whenever they get to it; a dictation pasted there
+    // leaves its text on the clipboard instead of swapping the old content back.
+    static readonly HashSet<string> NoRestoreApps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "mstsc", "msrdc", "vmconnect", "VirtualBoxVM", "vmware", "vmplayer", "AnyDesk", "TeamViewer", "rustdesk", "parsecd",
+    };
 
     readonly DispatcherTimer _saveTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     readonly object _saveLock = new();
@@ -131,6 +139,110 @@ public sealed class ClipboardService : IClipboardService
         catch (Exception ex)
         {
             App.LogError(ex);
+        }
+    }
+
+    public IntPtr PreviousWindow => _previousWindow;
+
+    public async void PasteTextTo(IntPtr target, string text)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            var canPaste = target != IntPtr.Zero && Win32.IsWindow(target);
+            // Taken before our write, and only when there will be a paste to undo; null when there was nothing
+            // (or nothing we can copy back).
+            var saved = canPaste && !NoRestoreApps.Contains(Native.GetProcessName(target)) ? SnapshotForRestore() : null;
+            var data = new DataObject();
+            data.SetText(text, TextDataFormat.UnicodeText);
+            if (!await PublishAsync(data))
+            {
+                Flash("Не удалось вставить текст", null);
+                return;
+            }
+            var ours = _ownSequence;
+            if (!canPaste)
+            {
+                // Nowhere to paste: the text stays on the clipboard for the user.
+                Flash("Текст скопирован", FirstLine(text));
+                return;
+            }
+
+            // Dictation may have been ended with its hotkey, which can still be held down.
+            await Native.WaitForModifiersReleasedAsync(TimeSpan.FromSeconds(1.5));
+            FocusWindow(target);
+            await Task.Delay(80);
+            if (!SameProcess(Native.GetForegroundWindow(), target))
+            {
+                Flash("Текст скопирован", "Вставьте вручную: Ctrl+V");
+                return;
+            }
+            SendCtrlV();
+
+            if (saved is null) return;
+            // The target reads the clipboard while it handles Ctrl+V. A busy window gets to its message queue first
+            // (if it doesn't within a few seconds, the dictated text simply stays on the clipboard), then a moment more.
+            var responded = await Task.Run(() => Win32.SendMessageTimeout(target, Win32.WM_NULL, IntPtr.Zero, IntPtr.Zero,
+                Win32.SMTO_ABORTIFHUNG, 3000, out _) != IntPtr.Zero);
+            if (!responded) return;
+            await Task.Delay(1000);
+            // Something copied in the meantime wins.
+            if (Win32.GetClipboardSequenceNumber() != ours) return;
+            await PublishAsync(saved);
+        }
+        catch (Exception ex)
+        {
+            App.LogError(ex);
+        }
+    }
+
+    /// <summary>
+    /// A copy of the common formats on the clipboard (text, RTF, HTML, files, images), to be put back after a
+    /// temporary paste. Content marked private (password managers clear it themselves) is not kept. UI thread.
+    /// </summary>
+    static DataObject? SnapshotForRestore()
+    {
+        try
+        {
+            var source = System.Windows.Clipboard.GetDataObject();
+            if (source is null) return null;
+            foreach (var format in PrivateFormats)
+                if (source.GetDataPresent(format, false)) return null;
+
+            var copy = new DataObject();
+            var any = false;
+            void Keep(string format, object? value)
+            {
+                if (value is null) return;
+                copy.SetData(format, value);
+                any = true;
+            }
+            var hasText = source.GetDataPresent(DataFormats.UnicodeText, true);
+            if (hasText) Keep(DataFormats.UnicodeText, source.GetData(DataFormats.UnicodeText, true) as string);
+            if (source.GetDataPresent(DataFormats.Rtf, false)) Keep(DataFormats.Rtf, source.GetData(DataFormats.Rtf, false) as string);
+            if (source.GetDataPresent(DataFormats.Html, false)) Keep(DataFormats.Html, source.GetData(DataFormats.Html, false) as string);
+            if (source.GetDataPresent(DataFormats.FileDrop, false)) Keep(DataFormats.FileDrop, source.GetData(DataFormats.FileDrop, false) as string[]);
+            var hasPng = false;
+            if (source.GetDataPresent("PNG", false) && source.GetData("PNG", false) is MemoryStream png && png.Length > 0)
+            {
+                Keep("PNG", new MemoryStream(png.ToArray()));
+                hasPng = true;
+            }
+            // Only a plain image needs the bitmap. Next to text it's a picture of that text (an Excel range, a Word
+            // page) that the owner would render on demand while the UI waits; next to a PNG it's a second copy.
+            if (!hasText && !hasPng && source.GetDataPresent(DataFormats.Bitmap, true) && source.GetData(DataFormats.Bitmap, true) is BitmapSource bitmap
+                && (long)bitmap.PixelWidth * bitmap.PixelHeight <= MaxRestorePixels)
+            {
+                // Detached from the other app's data object, which is gone once we replace the clipboard.
+                var frozen = new WriteableBitmap(bitmap);
+                frozen.Freeze();
+                Keep(DataFormats.Bitmap, frozen);
+            }
+            return any ? copy : null;
+        }
+        catch (Exception ex) when (ex is ExternalException or OutOfMemoryException or InvalidOperationException)
+        {
+            return null;
         }
     }
 
@@ -342,7 +454,12 @@ public sealed class ClipboardService : IClipboardService
             data.SetImage(image);
             data.SetData("PNG", new MemoryStream(bytes));
         }
+        return await PublishAsync(data);
+    }
 
+    /// <summary>Puts the data on the clipboard, marked as Glint's own so the history doesn't record it again.</summary>
+    async Task<bool> PublishAsync(DataObject data)
+    {
         return await RetryAsync(() =>
         {
             _settingClipboard = true;
@@ -625,6 +742,8 @@ public sealed class ClipboardService : IClipboardService
         public const ushort VK_CONTROL = 0x11;
         public const ushort VK_V = 0x56;
         public const int SW_RESTORE = 9;
+        public const uint WM_NULL = 0x0000;
+        public const uint SMTO_ABORTIFHUNG = 0x0002;
 
         public delegate void WinEventProc(IntPtr hook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint thread, uint time);
 
@@ -677,5 +796,6 @@ public sealed class ClipboardService : IClipboardService
         [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
         [DllImport("user32.dll", SetLastError = true)] public static extern uint SendInput(uint count, INPUT[] inputs, int size);
         [DllImport("user32.dll")] public static extern uint MapVirtualKey(uint code, uint mapType);
+        [DllImport("user32.dll")] public static extern IntPtr SendMessageTimeout(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
     }
 }

@@ -1,0 +1,88 @@
+<UserControl x:Class="Glint.Pages.WeatherPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:core="clr-namespace:Glint.Core"
+             Background="Transparent">
+
+    <!-- Fills the ~650 x 330 page area: now | 24 hours | 7 days. Cells are built in code. -->
+    <Grid>
+        <!-- Weather off or no city yet -->
+        <StackPanel x:Name="EmptyView" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed">
+            <Border Width="52" Height="52" CornerRadius="26" Background="{DynamicResource CardBrush}" HorizontalAlignment="Center">
+                <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Cloud}" FontSize="22" Foreground="{DynamicResource MutedBrush}"/>
+            </Border>
+            <TextBlock x:Name="EmptyTitle" Text="Погода выключена" HorizontalAlignment="Center" Margin="0,10,0,0" FontWeight="SemiBold"/>
+            <TextBlock x:Name="EmptyText" Style="{StaticResource MutedText}" HorizontalAlignment="Center" TextAlignment="Center"
+                       TextWrapping="Wrap" TextTrimming="None" MaxWidth="340" Margin="0,4,0,12"
+                       Text="Выберите город — температура появится рядом с часами, а здесь прогноз на сутки и неделю. Данные с Open-Meteo, раз в 30 минут"/>
+            <Button x:Name="SetupButton" Style="{StaticResource TileButton}" HorizontalAlignment="Center" HorizontalContentAlignment="Center"
+                    Padding="14,7" Click="SetupButton_Click">
+                <TextBlock Text="Выбрать город" Foreground="{DynamicResource AccentBrush}"/>
+            </Button>
+        </StackPanel>
+
+        <Grid x:Name="ForecastView" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- ───── Now ───── -->
+            <Border Style="{StaticResource Card}" Padding="14,10,8,10">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <ContentControl x:Name="NowIcon" Width="50" Height="50" VerticalAlignment="Center" Focusable="False"/>
+                    <TextBlock x:Name="NowTemp" Grid.Column="1" FontSize="34" FontWeight="Light" VerticalAlignment="Center"
+                               Margin="10,-4,14,0" TextTrimming="None"/>
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                        <TextBlock x:Name="NowCondition" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="NowDetails" Style="{StaticResource MutedText}" Margin="0,3,0,0"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                            <TextBlock x:Name="RainIcon" Style="{StaticResource Icon}" FontSize="11" Text="{x:Static core:Glyphs.Cloud}" Margin="0,0,5,0"/>
+                            <TextBlock x:Name="RainText" FontSize="12"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="10,0,0,0">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.MapPin}" FontSize="11"
+                                       Foreground="{DynamicResource MutedBrush}" Margin="0,0,5,0"/>
+                            <TextBlock x:Name="PlaceText" FontSize="12.5" MaxWidth="170"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,2,0,0">
+                            <TextBlock x:Name="UpdatedText" Style="{StaticResource MutedText}" FontSize="11" VerticalAlignment="Center"/>
+                            <Button x:Name="RefreshButton" Style="{StaticResource GhostButton}" Padding="6,4" Margin="2,0,0,0"
+                                    Focusable="False" ToolTip="Обновить" Click="RefreshButton_Click">
+                                <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Refresh}" FontSize="11"
+                                           Foreground="{DynamicResource MutedBrush}"/>
+                            </Button>
+                            <Button Style="{StaticResource GhostButton}" Padding="6,4" Focusable="False" ToolTip="Сменить город"
+                                    Click="SetupButton_Click">
+                                <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Settings}" FontSize="11"
+                                           Foreground="{DynamicResource MutedBrush}"/>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ───── 24 hours: scrolls sideways with the wheel ───── -->
+            <Border Grid.Row="1" Style="{StaticResource Card}" Padding="6,6" Margin="0,8,0,0">
+                <ScrollViewer x:Name="HoursScroll" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
+                              Focusable="False">
+                    <StackPanel x:Name="HoursPanel" Orientation="Horizontal"/>
+                </ScrollViewer>
+            </Border>
+
+            <!-- ───── 7 days ───── -->
+            <Border Grid.Row="2" Style="{StaticResource Card}" Padding="4,6" Margin="0,8,0,0">
+                <UniformGrid x:Name="DaysPanel" Rows="1" VerticalAlignment="Center"/>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

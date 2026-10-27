@@ -27,6 +27,39 @@ public sealed class AppSettings
     public string SurfaceTint { get; set; } = "graphite";
     /// <summary>Pill background opacity, 0.6..1.0.</summary>
     public double SurfaceOpacity { get; set; } = 0.92;
+    /// <summary>"dark", "light" or "system" (follow the Windows app theme). See ThemeService.ThemeModes.</summary>
+    public string ThemeMode { get; set; } = "dark";
+
+    /// <summary>The pill slides up off the top edge after a moment, leaving a thin strip to hover.</summary>
+    public bool AutoHide { get; set; }
+    /// <summary>Clicks go through the collapsed pill; holding Ctrl over it makes it reachable again.</summary>
+    public bool ClickThrough { get; set; }
+    /// <summary>Asks GitHub for a newer release at launch and every 6 hours. Network, so off by default.</summary>
+    public bool AutoUpdateCheck { get; set; }
+    /// <summary>
+    /// Currency conversion in the command bar ("100 usd", "курс евро"). Asks cbr-xml-daily.ru (fallback
+    /// open.er-api.com) at most every 6 hours and only when such a query is typed. Network, so off by default;
+    /// the command bar offers to turn it on.
+    /// </summary>
+    public bool CurrencyRates { get; set; }
+
+    /// <summary>Pill event indicators: mic/camera, keyboard, downloads, OBS, VPN, notifications, lyrics.</summary>
+    public IndicatorSettings Indicators { get; set; } = new();
+
+    /// <summary>Screenshots, QR / text from the screen, eyedropper, screen recording (all local).</summary>
+    public CaptureSettings Capture { get; set; } = new();
+
+    /// <summary>Open-Meteo weather in the pill and the Погода tab. Network, so off until a city is chosen.</summary>
+    public WeatherSettings Weather { get; set; } = new();
+
+    /// <summary>Dictation: language, engine and the optional global hotkey.</summary>
+    public VoiceSettings Voice { get; set; } = new();
+
+    /// <summary>Claude Code / Codex status and permission requests in the pill. Local only; off until connected.</summary>
+    public AgentSettings Agents { get; set; } = new();
+
+    /// <summary>The character in the pill: eyes on the cursor, dancing, thinking with agents, sleeping. Local only.</summary>
+    public MascotSettings Mascot { get; set; } = new();
 }
 
 /// <summary>Loads/saves <see cref="AppSettings"/> as JSON under %AppData%\Glint.</summary>
@@ -59,6 +92,20 @@ public sealed class SettingsStore
         // Explicit nulls or junk in a hand-edited file would otherwise break code that expects real values.
         Current.HiddenInApps ??= new();
         Current.DockApps ??= new();
+        Current.Indicators ??= new();
+        Current.Indicators.Normalize();
+        Current.Capture ??= new();
+        Current.Capture.Normalize();
+        Current.Weather ??= new();
+        Current.Weather.Normalize();
+        // No forecast without a place, whatever the file says.
+        if (!Current.Weather.HasPlace) Current.Weather.Enabled = false;
+        Current.Voice ??= new();
+        Current.Voice.Normalize();
+        Current.Agents ??= new();
+        Current.Agents.Normalize();
+        Current.Mascot ??= new();
+        Current.Mascot.Normalize();
         if (string.IsNullOrWhiteSpace(Current.CommandBarHotkey)) Current.CommandBarHotkey = "Alt+Space";
         if (!double.IsFinite(Current.Scale)) Current.Scale = 1.0;
         Current.Scale = Math.Clamp(Current.Scale, 0.8, 2.0);

@@ -17,6 +17,31 @@
         <Style x:Key="SectionCard" TargetType="Border" BasedOn="{StaticResource Card}">
             <Setter Property="Margin" Value="0,0,0,14"/>
         </Style>
+        <Style x:Key="IndicatorHint" TargetType="TextBlock" BasedOn="{StaticResource MutedText}">
+            <Setter Property="Margin" Value="0,2,0,0"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="TextTrimming" Value="None"/>
+        </Style>
+        <!-- Same look as the theme's TextBox; WPF has no shared base for the two. -->
+        <Style x:Key="DarkPasswordBox" TargetType="PasswordBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
+            <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="PasswordBox">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False" VerticalScrollBarVisibility="Hidden"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <!-- Bare clickable swatch: the content draws everything, focus stays where it was (e.g. in a HEX box). -->
         <Style x:Key="SwatchButton" TargetType="Button">
             <Setter Property="Cursor" Value="Hand"/>
@@ -50,10 +75,20 @@
             <TextBlock Style="{StaticResource SectionTitle}" Text="ОФОРМЛЕНИЕ"/>
             <Border Style="{StaticResource SectionCard}">
                 <StackPanel>
+                    <!-- Тема: dark / light / follow Windows, filled in code from ThemeService.ThemeModes -->
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource RowLabel}" Text="Тема"/>
+                        <StackPanel x:Name="ThemeModePanel" Grid.Column="1" Orientation="Horizontal"/>
+                    </Grid>
+
                     <!-- Preset swatches, filled in code from ThemeService.Presets -->
                     <WrapPanel x:Name="PresetPanel" Margin="-4,0,0,0"/>
 
-                    <Border Height="1" Background="{StaticResource DividerBrush}" Margin="0,10,0,12"/>
+                    <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,10,0,12"/>
 
                     <!-- Свои цвета -->
                     <Grid>
@@ -100,7 +135,7 @@
                     <TextBlock x:Name="ColorHint" Style="{StaticResource MutedText}" Margin="110,6,0,0"
                                Text="Введите HEX и нажмите Enter или выберите точку"/>
 
-                    <Border Height="1" Background="{StaticResource DividerBrush}" Margin="0,12,0,12"/>
+                    <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,12,0,12"/>
 
                     <!-- Фон -->
                     <Grid>
@@ -177,6 +212,81 @@
                 </StackPanel>
             </Border>
 
+            <!-- Персонаж: the character in the pill (see SettingsPage.Mascot.cs); toggles carry the AppSettings.Mascot property name in Tag -->
+            <TextBlock Style="{StaticResource SectionTitle}" Text="ПЕРСОНАЖ"/>
+            <Border x:Name="MascotCard" Style="{StaticResource SectionCard}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource IndicatorHint}" Margin="0"
+                               Text="Маленький житель пилюли: следит глазами за курсором, танцует под музыку, думает, пока работает агент, и засыпает, когда вас нет. Пока ничего не происходит, он не шевелится и процессор не тратит"/>
+                    <!-- Character picker, filled in code from MascotDesigns.All -->
+                    <WrapPanel x:Name="MascotPicker" Margin="-4,10,0,0"/>
+
+                    <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,10,0,12"/>
+
+                    <StackPanel x:Name="MascotOptionsPanel">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource RowLabel}" Text="Размер"/>
+                            <StackPanel x:Name="MascotSizePanel" Grid.Column="1" Orientation="Horizontal"/>
+                        </Grid>
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource RowLabel}" Text="Где сидит"/>
+                            <StackPanel x:Name="MascotSidePanel" Grid.Column="1" Orientation="Horizontal"/>
+                        </Grid>
+                        <CheckBox Style="{StaticResource ToggleSwitch}" Tag="FollowCursor" Margin="0,14,0,0"
+                                  Checked="MascotToggle_Changed" Unchecked="MascotToggle_Changed">
+                            <StackPanel>
+                                <TextBlock Text="Следит глазами за курсором"/>
+                                <TextBlock Style="{StaticResource IndicatorHint}" Text="Когда курсор рядом с пилюлей; издалека смотрит перед собой"/>
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox Style="{StaticResource ToggleSwitch}" Tag="Dance" Margin="0,12,0,0"
+                                  Checked="MascotToggle_Changed" Unchecked="MascotToggle_Changed">
+                            <StackPanel>
+                                <TextBlock Text="Танцует под музыку"/>
+                                <TextBlock Style="{StaticResource IndicatorHint}" Text="Подпрыгивает в такт громкости того, что играет; звук никуда не записывается"/>
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox Style="{StaticResource ToggleSwitch}" Tag="ThinkWithAgents" Margin="0,12,0,0"
+                                  Checked="MascotToggle_Changed" Unchecked="MascotToggle_Changed">
+                            <StackPanel>
+                                <TextBlock Text="Думает, пока работает агент"/>
+                                <TextBlock Style="{StaticResource IndicatorHint}" Text="Claude Code или Codex из «Агентов»: пока агент работает — задумался, ждёт вас — «!», закончил — радуется"/>
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox Style="{StaticResource ToggleSwitch}" Tag="Sleep" Margin="0,12,0,0"
+                                  Checked="MascotToggle_Changed" Unchecked="MascotToggle_Changed">
+                            <StackPanel>
+                                <TextBlock Text="Засыпает, когда вас нет"/>
+                                <TextBlock Style="{StaticResource IndicatorHint}" Text="Без мыши и клавиатуры закрывает глаза; просыпается от первого движения"/>
+                            </StackPanel>
+                        </CheckBox>
+                        <Grid x:Name="MascotSleepRow" Margin="24,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource RowLabel}" Text="Через" Margin="0,0,12,0"/>
+                            <WrapPanel x:Name="MascotSleepPanel" Grid.Column="1"/>
+                        </Grid>
+                        <CheckBox Style="{StaticResource ToggleSwitch}" Tag="ThemeColors" Margin="0,12,0,0"
+                                  Checked="MascotToggle_Changed" Unchecked="MascotToggle_Changed">
+                            <StackPanel>
+                                <TextBlock Text="В цветах темы"/>
+                                <TextBlock Style="{StaticResource IndicatorHint}" Text="Красится в акценты из «Оформления» вместо своих цветов"/>
+                            </StackPanel>
+                        </CheckBox>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <!-- Поведение -->
             <TextBlock Style="{StaticResource SectionTitle}" Text="ПОВЕДЕНИЕ"/>
             <Border Style="{StaticResource SectionCard}">
@@ -187,6 +297,20 @@
                     <CheckBox x:Name="AutostartToggle" Style="{StaticResource ToggleSwitch}" Margin="0,12,0,0"
                               Content="Запускать вместе с Windows"
                               Checked="AutostartToggle_Changed" Unchecked="AutostartToggle_Changed"/>
+                    <CheckBox x:Name="AutoHideToggle" Style="{StaticResource ToggleSwitch}" Margin="0,12,0,0"
+                              Checked="BehaviorToggle_Changed" Unchecked="BehaviorToggle_Changed">
+                        <StackPanel>
+                            <TextBlock Text="Автоскрытие"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="Пилюля уезжает за верхний край, остаётся тонкая полоска. Наведите на неё — пилюля вернётся; уведомления тоже её показывают"/>
+                        </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="ClickThroughToggle" Style="{StaticResource ToggleSwitch}" Margin="0,12,0,0"
+                              Checked="BehaviorToggle_Changed" Unchecked="BehaviorToggle_Changed">
+                        <StackPanel>
+                            <TextBlock Text="Пропускать клики сквозь пилюлю"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="Пилюля не мешает кликать по вкладкам браузера. Зажмите Ctrl и наведите — она снова откликается. Настройки всегда открываются из значка в трее"/>
+                        </StackPanel>
+                    </CheckBox>
                     <Grid Margin="0,12,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -207,6 +331,182 @@
                         <Button Grid.Column="2" Style="{StaticResource GhostButton}" Margin="6,0,0,0" VerticalAlignment="Center"
                                 Content="Сбросить" Click="HotkeyReset_Click"/>
                     </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Командная строка: currency rates are the only part that uses the network -->
+            <TextBlock Style="{StaticResource SectionTitle}" Text="КОМАНДНАЯ СТРОКА"/>
+            <Border Style="{StaticResource SectionCard}">
+                <StackPanel>
+                    <CheckBox x:Name="CurrencyToggle" Style="{StaticResource ToggleSwitch}"
+                              Checked="BehaviorToggle_Changed" Unchecked="BehaviorToggle_Changed">
+                        <StackPanel>
+                            <TextBlock Text="Курсы валют"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="«100 usd», «50 евро в руб», «курс». Сеть: курсы ЦБ РФ с cbr-xml-daily.ru (запасной — open.er-api.com), не чаще раза в 6 часов и только когда вы спрашиваете курс"/>
+                        </StackPanel>
+                    </CheckBox>
+                    <TextBlock Style="{StaticResource IndicatorHint}" Margin="0,12,0,0"
+                               Text="Без сети: калькулятор, таймеры и напоминания («напомни завтра в 9 позвонить маме»), быстрые заметки («заметка купить хлеб») и поиск по заметкам"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Экран: screenshots, QR / text from the screen, eyedropper, recording. All local. -->
+            <TextBlock Style="{StaticResource SectionTitle}" Text="ЭКРАН"/>
+            <Border Style="{StaticResource SectionCard}">
+                <StackPanel>
+                    <CheckBox x:Name="CaptureEditorToggle" Style="{StaticResource ToggleSwitch}"
+                              Checked="CaptureToggle_Changed" Unchecked="CaptureToggle_Changed">
+                        <StackPanel>
+                            <TextBlock Text="Редактор после скриншота"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="Стрелки, рамки, текст, маркер, скрытие и обрезка. Без него снимок сразу копируется и сохраняется в «Изображения\Glint»"/>
+                        </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="CaptureHideGlintToggle" Style="{StaticResource ToggleSwitch}" Margin="0,12,0,0"
+                              Checked="CaptureToggle_Changed" Unchecked="CaptureToggle_Changed">
+                        <StackPanel>
+                            <TextBlock Text="Скрывать Glint на снимках и записи"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="Пилюля видна вам, но не попадает в кадр. Открытая панель не попадает никогда"/>
+                        </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="RecordAudioToggle" Style="{StaticResource ToggleSwitch}" Margin="0,12,0,0"
+                              Checked="CaptureToggle_Changed" Unchecked="CaptureToggle_Changed">
+                        <StackPanel>
+                            <TextBlock Text="Звук системы в записи экрана"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="То, что играет в динамиках или наушниках по умолчанию; микрофон не пишется"/>
+                        </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="RecordCursorToggle" Style="{StaticResource ToggleSwitch}" Margin="0,12,0,0"
+                              Checked="CaptureToggle_Changed" Unchecked="CaptureToggle_Changed">
+                        <TextBlock Text="Курсор в записи"/>
+                    </CheckBox>
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Кадров в секунду"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="MP4 (H.264) в «Видео\Glint», кодирует видеокарта, если умеет"/>
+                        </StackPanel>
+                        <StackPanel x:Name="FrameRatePanel" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Погода: Open-Meteo. The forecast and the city search are the only network parts (see SettingsPage.Weather.cs). -->
+            <TextBlock Style="{StaticResource SectionTitle}" Text="ПОГОДА"/>
+            <Border x:Name="WeatherCard" Style="{StaticResource SectionCard}">
+                <StackPanel>
+                    <CheckBox x:Name="WeatherToggle" Style="{StaticResource ToggleSwitch}"
+                              Checked="WeatherToggle_Changed" Unchecked="WeatherToggle_Changed">
+                        <StackPanel>
+                            <TextBlock Text="Погода"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="Сеть: прогноз с api.open-meteo.com при запуске и раз в 30 минут, пока включено. Уходят только координаты города"/>
+                        </StackPanel>
+                    </CheckBox>
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource RowLabel}" Text="Город"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock x:Name="WeatherPlaceText" Text="Не выбран"/>
+                            <TextBlock x:Name="WeatherPlaceDetails" Style="{StaticResource MutedText}" Margin="0,1,0,0" Visibility="Collapsed"/>
+                        </StackPanel>
+                    </Grid>
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="CitySearchBox" KeyDown="CitySearchBox_KeyDown" TextChanged="CitySearchBox_TextChanged"/>
+                        <TextBlock x:Name="CitySearchPlaceholder" Style="{StaticResource MutedText}" FontSize="13" Margin="9,0,0,0"
+                                   VerticalAlignment="Center" IsHitTestVisible="False" Text="Найти город: Москва, Казань, Минск…"/>
+                        <Button x:Name="CitySearchButton" Grid.Column="1" Style="{StaticResource TileButton}" Margin="8,0,0,0"
+                                HorizontalContentAlignment="Center" Content="Найти" Click="CitySearch_Click"/>
+                    </Grid>
+                    <TextBlock x:Name="CitySearchStatus" Style="{StaticResource IndicatorHint}" Margin="2,6,0,0" Visibility="Collapsed"/>
+                    <StackPanel x:Name="CityResults" Margin="0,4,0,0"/>
+                    <TextBlock Style="{StaticResource IndicatorHint}" Margin="2,4,0,0"
+                               Text="Поиск — geocoding-api.open-meteo.com, только когда вы ищете. Выбор города включает погоду"/>
+                    <CheckBox x:Name="WeatherPillToggle" Style="{StaticResource ToggleSwitch}" Margin="0,12,0,0"
+                              Checked="WeatherOption_Changed" Unchecked="WeatherOption_Changed">
+                        <StackPanel>
+                            <TextBlock Text="Температура в пилюле"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="Значок и градусы рядом с часами; когда в пилюле тесно, они сменяются с часами"/>
+                        </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="WeatherRainToggle" Style="{StaticResource ToggleSwitch}" Margin="0,12,0,0"
+                              Checked="WeatherOption_Changed" Unchecked="WeatherOption_Changed">
+                        <StackPanel>
+                            <TextBlock Text="Предупреждать о дожде"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="Примерно за час: «Через ~40 мин дождь», один раз на каждый дождь. По 15-минутному прогнозу, без лишних запросов"/>
+                        </StackPanel>
+                    </CheckBox>
+                </StackPanel>
+            </Border>
+
+            <!-- Голосовой ввод: Windows speech recognition (see SettingsPage.Voice.cs) -->
+            <TextBlock Style="{StaticResource SectionTitle}" Text="ГОЛОСОВОЙ ВВОД"/>
+            <Border x:Name="VoiceCard" Style="{StaticResource SectionCard}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource IndicatorHint}" Margin="0"
+                               Text="Микрофон во вкладке «Текст» и в командной строке; «диктовка» в командной строке или горячая клавиша — в окно, где вы печатали. Пауза или повторное нажатие заканчивают"/>
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Горячая клавиша диктовки"/>
+                            <TextBlock x:Name="VoiceHotkeyHint" Style="{StaticResource MutedText}" Margin="0,2,0,0"
+                                       Text="Кликните по полю и нажмите сочетание"/>
+                        </StackPanel>
+                        <TextBox x:Name="VoiceHotkeyBox" Grid.Column="1" Width="170" IsReadOnly="True" IsReadOnlyCaretVisible="False"
+                                 Cursor="Hand" TextAlignment="Center" VerticalAlignment="Center"
+                                 InputMethod.IsInputMethodEnabled="False"
+                                 PreviewKeyDown="VoiceHotkeyBox_PreviewKeyDown"
+                                 GotKeyboardFocus="VoiceHotkeyBox_GotKeyboardFocus"
+                                 LostKeyboardFocus="VoiceHotkeyBox_LostKeyboardFocus"/>
+                        <Button Grid.Column="2" Style="{StaticResource GhostButton}" Margin="6,0,0,0" VerticalAlignment="Center"
+                                Content="Убрать" Click="VoiceHotkeyClear_Click"/>
+                    </Grid>
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource RowLabel}" Text="Язык" VerticalAlignment="Top" Margin="0,5,0,0"/>
+                        <WrapPanel x:Name="VoiceLanguagePanel" Grid.Column="1"/>
+                    </Grid>
+                    <!-- Only when another engine (an AI provider with transcription) has registered itself. -->
+                    <Grid x:Name="VoiceEngineRow" Margin="0,12,0,0" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource RowLabel}" Text="Распознавание" VerticalAlignment="Top" Margin="0,5,0,0"/>
+                        <WrapPanel x:Name="VoiceEnginePanel" Grid.Column="1"/>
+                    </Grid>
+
+                    <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,12,0,12"/>
+
+                    <TextBlock x:Name="VoiceStatus" Style="{StaticResource IndicatorHint}" Margin="0"/>
+                    <WrapPanel Margin="-4,8,0,0">
+                        <Button Style="{StaticResource GhostButton}" Tag="ms-settings:speech" Click="VoiceSettingsLink_Click">
+                            <TextBlock Text="Языки речи" Foreground="{DynamicResource AccentBrush}"/>
+                        </Button>
+                        <Button Style="{StaticResource GhostButton}" Tag="ms-settings:privacy-speech" Click="VoiceSettingsLink_Click">
+                            <TextBlock Text="Распознавание в сети" Foreground="{DynamicResource AccentBrush}"/>
+                        </Button>
+                        <Button Style="{StaticResource GhostButton}" Tag="ms-settings:privacy-microphone" Click="VoiceSettingsLink_Click">
+                            <TextBlock Text="Доступ к микрофону" Foreground="{DynamicResource AccentBrush}"/>
+                        </Button>
+                    </WrapPanel>
+                    <TextBlock Style="{StaticResource IndicatorHint}" Margin="0,6,0,0"
+                               Text="Распознаёт Windows. Для диктовки нужен язык речи и «Распознавание речи в сети»: тогда звук обрабатывает служба Microsoft, сам Glint ничего не отправляет. Если распознавание недоступно, Glint откроет голосовой ввод Windows (Win+H)"/>
                 </StackPanel>
             </Border>
 
@@ -246,7 +546,7 @@
                                         <Button Style="{StaticResource GhostButton}" Padding="6,4" Margin="4,0,0,0"
                                                 ToolTip="Убрать" Click="RemoveHiddenApp_Click">
                                             <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Close}" FontSize="9"
-                                                       Foreground="{StaticResource MutedBrush}"/>
+                                                       Foreground="{DynamicResource MutedBrush}"/>
                                         </Button>
                                     </StackPanel>
                                 </Border>
@@ -266,6 +566,248 @@
                     </Grid>
                     <TextBlock Style="{StaticResource MutedText}" Margin="2,8,0,0" TextWrapping="Wrap" TextTrimming="None"
                                Text="Имя процесса, например obs64 или vlc. Glint прячется, пока это приложение на переднем плане."/>
+                </StackPanel>
+            </Border>
+
+            <!-- Индикаторы: toggles carry the AppSettings.Indicators property name in Tag (see SettingsPage.Indicators.cs) -->
+            <TextBlock Style="{StaticResource SectionTitle}" Text="ИНДИКАТОРЫ"/>
+            <Border Style="{StaticResource SectionCard}">
+                <StackPanel x:Name="IndicatorsPanel">
+                    <CheckBox Style="{StaticResource ToggleSwitch}" Tag="MicCamera"
+                              Checked="IndicatorToggle_Changed" Unchecked="IndicatorToggle_Changed">
+                        <StackPanel>
+                            <TextBlock Text="Микрофон и камера"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="Точка в пилюле, пока приложение пользуется микрофоном или камерой"/>
+                        </StackPanel>
+                    </CheckBox>
+                    <CheckBox Style="{StaticResource ToggleSwitch}" Tag="CapsLock" Margin="0,12,0,0"
+                              Content="Caps Lock" Checked="IndicatorToggle_Changed" Unchecked="IndicatorToggle_Changed"/>
+                    <CheckBox Style="{StaticResource ToggleSwitch}" Tag="KeyboardLayout" Margin="0,12,0,0"
+                              Content="Смена раскладки (RU / EN)" Checked="IndicatorToggle_Changed" Unchecked="IndicatorToggle_Changed"/>
+                    <CheckBox Style="{StaticResource ToggleSwitch}" Tag="Downloads" Margin="0,12,0,0"
+                              Checked="IndicatorToggle_Changed" Unchecked="IndicatorToggle_Changed">
+                        <StackPanel>
+                            <TextBlock Text="Загрузки браузера"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="Следит за папкой «Загрузки»; по клику на «Загружено» откроется файл в проводнике"/>
+                        </StackPanel>
+                    </CheckBox>
+                    <CheckBox Style="{StaticResource ToggleSwitch}" Tag="Steam" Margin="0,12,0,0"
+                              Content="Загрузки Steam" Checked="IndicatorToggle_Changed" Unchecked="IndicatorToggle_Changed"/>
+                    <CheckBox Style="{StaticResource ToggleSwitch}" Tag="Vpn" Margin="0,12,0,0"
+                              Content="VPN подключён" Checked="IndicatorToggle_Changed" Unchecked="IndicatorToggle_Changed"/>
+                    <CheckBox Style="{StaticResource ToggleSwitch}" Tag="VpnIpLookup" Margin="24,8,0,0"
+                              Checked="IndicatorToggle_Changed" Unchecked="IndicatorToggle_Changed">
+                        <StackPanel>
+                            <TextBlock Text="Показывать внешний IP и страну"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="Сеть: при подключении VPN спрашивает ipwho.is (запасной — country.is)"/>
+                        </StackPanel>
+                    </CheckBox>
+                    <!-- Adapters that never count as a VPN (split tunnels for one app); see SettingsPage.Indicators.cs -->
+                    <StackPanel x:Name="VpnIgnorePanel" Margin="24,12,0,0">
+                        <TextBlock Text="Не считать VPN"/>
+                        <TextBlock Style="{StaticResource IndicatorHint}" Margin="0,2,0,8"
+                                   Text="Туннели только для одной программы, например sb-discord у sing-box: значок VPN из-за них не нужен"/>
+                        <ItemsControl x:Name="VpnIgnoredList">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{DynamicResource CardHoverBrush}" CornerRadius="10" Padding="10,2,2,2" Margin="0,0,6,6">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding}" VerticalAlignment="Center" FontSize="12.5"/>
+                                            <Button Style="{StaticResource GhostButton}" Padding="6,4" Margin="4,0,0,0"
+                                                    ToolTip="Снова считать VPN" Click="RemoveVpnIgnored_Click">
+                                                <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Close}" FontSize="9"
+                                                           Foreground="{DynamicResource MutedBrush}"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <!-- Tunnels Glint sees right now, one click to ignore. -->
+                        <ItemsControl x:Name="VpnFoundList">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource TileButton}" Padding="10,4" Margin="0,0,6,6" FontSize="12"
+                                            ToolTip="Сейчас считается VPN; нажмите, чтобы не считать" Click="AddFoundVpn_Click">
+                                        <TextBlock Text="{Binding StringFormat='+ {0}'}"/>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="VpnIgnoreInput" KeyDown="VpnIgnoreInput_KeyDown"
+                                     ToolTip="Имя сетевого адаптера, как в «Сетевых подключениях»"/>
+                            <Button Grid.Column="1" Style="{StaticResource TileButton}" Margin="8,0,0,0"
+                                    HorizontalContentAlignment="Center" Content="Добавить" Click="AddVpnIgnored_Click"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,12,0,12"/>
+
+                    <CheckBox Style="{StaticResource ToggleSwitch}" Tag="Obs"
+                              Checked="IndicatorToggle_Changed" Unchecked="IndicatorToggle_Changed">
+                        <StackPanel>
+                            <TextBlock Text="Запись OBS"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="Замечает растущий файл в папке записей из профиля OBS"/>
+                        </StackPanel>
+                    </CheckBox>
+                    <CheckBox Style="{StaticResource ToggleSwitch}" Tag="ObsWebSocket" Margin="24,8,0,0"
+                              Checked="IndicatorToggle_Changed" Unchecked="IndicatorToggle_Changed">
+                        <StackPanel>
+                            <TextBlock Text="Спрашивать OBS через obs-websocket"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="Точнее: OBS → Сервис → Настройки сервера WebSocket. Только localhost"/>
+                        </StackPanel>
+                    </CheckBox>
+                    <Grid x:Name="ObsConnectionRow" Margin="24,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource RowLabel}" Text="Порт"/>
+                        <TextBox x:Name="ObsPortBox" Grid.Column="1" Width="70" Margin="8,0,12,0" MaxLength="5"
+                                 VerticalAlignment="Center" LostKeyboardFocus="ObsPortBox_LostKeyboardFocus"/>
+                        <PasswordBox x:Name="ObsPasswordBox" Grid.Column="2" Style="{StaticResource DarkPasswordBox}"
+                                     VerticalAlignment="Center" ToolTip="Пароль сервера obs-websocket; хранится зашифрованным (DPAPI)"/>
+                        <Button Grid.Column="3" Style="{StaticResource TileButton}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                HorizontalContentAlignment="Center" Content="Сохранить" Click="ObsPasswordSave_Click"/>
+                    </Grid>
+                    <TextBlock x:Name="ObsPasswordHint" Style="{StaticResource IndicatorHint}" Margin="24,4,0,0" Text="Пароль не задан"/>
+
+                    <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,12,0,12"/>
+
+                    <CheckBox Style="{StaticResource ToggleSwitch}" Tag="Notifications"
+                              Checked="IndicatorToggle_Changed" Unchecked="IndicatorToggle_Changed">
+                        <StackPanel>
+                            <TextBlock Text="Уведомления Windows"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="Коротко показывает приложение и заголовок новых уведомлений, молчит в режиме «Не беспокоить». Только читает системное хранилище уведомлений, ничего в нём не меняет"/>
+                        </StackPanel>
+                    </CheckBox>
+                    <CheckBox Style="{StaticResource ToggleSwitch}" Tag="Lyrics" Margin="0,12,0,0"
+                              Checked="IndicatorToggle_Changed" Unchecked="IndicatorToggle_Changed">
+                        <StackPanel>
+                            <TextBlock Text="Текст песни"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="Сеть: отправляет на lrclib.net исполнителя, название и длину трека"/>
+                        </StackPanel>
+                    </CheckBox>
+                    <CheckBox Style="{StaticResource ToggleSwitch}" Tag="LyricsInPill" Margin="24,8,0,0"
+                              Content="Строка текста рядом с часами" Checked="IndicatorToggle_Changed" Unchecked="IndicatorToggle_Changed"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Агенты: Claude Code and Codex hooks; toggles carry the AppSettings.Agents property name in Tag (see SettingsPage.Agents.cs) -->
+            <TextBlock Style="{StaticResource SectionTitle}" Text="АГЕНТЫ"/>
+            <Border x:Name="AgentsCard" Style="{StaticResource SectionCard}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource IndicatorHint}" Margin="0"
+                               Text="Claude Code и Codex показывают в пилюле, что делают: работают, ждут вас или закончили. Запросы разрешений и вопросы можно решить прямо в пилюле. Всё локально: агент запускает Glint.exe, а тот передаёт событие работающему Glint по каналу, открытому только для вашей учётной записи"/>
+
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Claude Code"/>
+                            <TextBlock x:Name="ClaudeHookStatus" Style="{StaticResource IndicatorHint}" Text="—"/>
+                        </StackPanel>
+                        <Button x:Name="ClaudeDisconnectButton" Grid.Column="1" Style="{StaticResource GhostButton}" Margin="8,0,0,0"
+                                VerticalAlignment="Center" Tag="claude:off" Click="AgentHookButton_Click" Content="Отключить"/>
+                        <Button x:Name="ClaudeConnectButton" Grid.Column="2" Style="{StaticResource TileButton}" Margin="6,0,0,0"
+                                VerticalAlignment="Center" HorizontalContentAlignment="Center" Tag="claude:on" Click="AgentHookButton_Click">
+                            <TextBlock x:Name="ClaudeConnectText" Text="Подключить Claude Code" Foreground="{DynamicResource AccentBrush}"/>
+                        </Button>
+                    </Grid>
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Codex"/>
+                            <TextBlock x:Name="CodexHookStatus" Style="{StaticResource IndicatorHint}" Text="—"/>
+                        </StackPanel>
+                        <Button x:Name="CodexDisconnectButton" Grid.Column="1" Style="{StaticResource GhostButton}" Margin="8,0,0,0"
+                                VerticalAlignment="Center" Tag="codex:off" Click="AgentHookButton_Click" Content="Отключить"/>
+                        <Button x:Name="CodexConnectButton" Grid.Column="2" Style="{StaticResource TileButton}" Margin="6,0,0,0"
+                                VerticalAlignment="Center" HorizontalContentAlignment="Center" Tag="codex:on" Click="AgentHookButton_Click">
+                            <TextBlock x:Name="CodexConnectText" Text="Подключить Codex" Foreground="{DynamicResource AccentBrush}"/>
+                        </Button>
+                    </Grid>
+
+                    <!-- Confirmation: exactly what will be written, before anything is. -->
+                    <Border x:Name="AgentConfirm" Margin="0,12,0,0" Padding="12" CornerRadius="12"
+                            Background="{DynamicResource CardHoverBrush}" Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock x:Name="AgentConfirmTitle" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="AgentConfirmText" Style="{StaticResource IndicatorHint}" Margin="0,4,0,0"/>
+                            <TextBox x:Name="AgentConfirmSnippet" Margin="0,8,0,0" IsReadOnly="True" IsReadOnlyCaretVisible="False"
+                                     FontFamily="Cascadia Mono, Consolas" FontSize="11" MaxHeight="170"
+                                     TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                <Button Style="{StaticResource GhostButton}" Content="Отмена" Click="AgentConfirmCancel_Click"/>
+                                <Button Style="{StaticResource TileButton}" Margin="6,0,0,0" HorizontalContentAlignment="Center"
+                                        Click="AgentConfirmApply_Click">
+                                    <TextBlock x:Name="AgentConfirmButtonText" Text="Подключить" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AccentBrush}"/>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <TextBlock x:Name="AgentResult" Style="{StaticResource IndicatorHint}" Margin="0,8,0,0" Visibility="Collapsed"/>
+
+                    <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,12,0,12"/>
+
+                    <StackPanel x:Name="AgentOptionsPanel">
+                        <CheckBox Style="{StaticResource ToggleSwitch}" Tag="Enabled"
+                                  Checked="AgentToggle_Changed" Unchecked="AgentToggle_Changed">
+                            <StackPanel>
+                                <TextBlock Text="Принимать события агентов"/>
+                                <TextBlock Style="{StaticResource IndicatorHint}" Text="Выключено — подключённые агенты работают как без Glint"/>
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox Style="{StaticResource ToggleSwitch}" Tag="AskInPill" Margin="0,12,0,0"
+                                  Checked="AgentToggle_Changed" Unchecked="AgentToggle_Changed">
+                            <StackPanel>
+                                <TextBlock Text="Спрашивать разрешения и вопросы в пилюле"/>
+                                <TextBlock Style="{StaticResource IndicatorHint}" Text="Разрешить / Запретить и варианты ответа; без ответа агент спросит в терминале как обычно"/>
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox Style="{StaticResource ToggleSwitch}" Tag="SkipWhenTerminalActive" Margin="24,8,0,0"
+                                  Content="Не перехватывать, когда терминал агента на переднем плане"
+                                  Checked="AgentToggle_Changed" Unchecked="AgentToggle_Changed"/>
+                        <Grid x:Name="AgentTimeoutRow" Margin="24,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource RowLabel}" Text="Ждать ответа" Margin="0,0,12,0"/>
+                            <WrapPanel x:Name="AgentTimeoutPanel" Grid.Column="1"/>
+                        </Grid>
+                        <CheckBox Style="{StaticResource ToggleSwitch}" Tag="ShowInPill" Margin="0,12,0,0"
+                                  Content="Состояние агента рядом с часами" Checked="AgentToggle_Changed" Unchecked="AgentToggle_Changed"/>
+                        <CheckBox Style="{StaticResource ToggleSwitch}" Tag="FlashOnDone" Margin="0,12,0,0"
+                                  Content="Сообщать, когда агент закончил" Checked="AgentToggle_Changed" Unchecked="AgentToggle_Changed"/>
+                        <CheckBox Style="{StaticResource ToggleSwitch}" Tag="FlashOnWaiting" Margin="0,12,0,0"
+                                  Content="Сообщать, когда агент ждёт вас в терминале" Checked="AgentToggle_Changed" Unchecked="AgentToggle_Changed"/>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
@@ -291,8 +833,8 @@
                 </Grid>
             </Border>
 
-            <!-- Обновление: только по кнопке, Glint сам в сеть не ходит -->
-            <Border Style="{StaticResource Card}" Margin="0,8,0,0">
+            <!-- Обновление: по кнопке, а с включённой автопроверкой ещё при запуске и раз в 6 часов -->
+            <Border x:Name="UpdateCard" Style="{StaticResource Card}" Margin="0,8,0,0">
                 <StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -312,6 +854,13 @@
                     <ProgressBar x:Name="UpdateProgress" Height="3" Margin="0,10,0,0" Minimum="0" Maximum="1"
                                  Visibility="Collapsed" BorderThickness="0"
                                  Background="{DynamicResource CardBrush}" Foreground="{DynamicResource AccentBrush}"/>
+                    <CheckBox x:Name="AutoUpdateToggle" Style="{StaticResource ToggleSwitch}" Margin="0,12,0,0"
+                              Checked="BehaviorToggle_Changed" Unchecked="BehaviorToggle_Changed">
+                        <StackPanel>
+                            <TextBlock Text="Проверять обновления автоматически"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="Сеть: при запуске и раз в 6 часов спрашивает api.github.com о последнем релизе. Устанавливает только по вашей кнопке"/>
+                        </StackPanel>
+                    </CheckBox>
                 </StackPanel>
             </Border>
 

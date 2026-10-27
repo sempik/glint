@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Glint.Capture;
 using Glint.Core;
 
 namespace Glint.Pages;
@@ -14,7 +15,6 @@ public partial class HomePage : UserControl
 
     bool _attached;
     bool _syncingVolume;
-    bool _capturing;
     MediaInfo? _lastMedia;
     DateTime _lastMediaAt;
     string? _dockSignature;
@@ -23,7 +23,13 @@ public partial class HomePage : UserControl
     {
         InitializeComponent();
 
-        _progressTimer.Tick += (_, _) => RefreshMedia();
+        _progressTimer.Tick += (_, _) =>
+        {
+            RefreshMedia();
+            TickReminders();
+            UpdateRecordTile();
+        };
+        AllRemindersButton.Click += (_, _) => (Window.GetWindow(this) as Glint.Pill.PillWindow)?.ShowReminders();
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
         IsVisibleChanged += (_, _) => UpdateTimerState();
@@ -37,9 +43,13 @@ public partial class HomePage : UserControl
         MuteButton.Click += (_, _) => ToggleMute();
         VolumeRow.PreviewMouseWheel += OnVolumeWheel;
 
-        RegionShotButton.Click += (_, _) => StartRegionShot();
-        FullShotButton.Click += (_, _) => CaptureFullScreen();
-        EyedropperButton.Click += (_, _) => EyedropperWindow.Start();
+        // Screen tools freeze the screen without Glint on it, so the open panel needs no special handling.
+        AreaShotButton.Click += (_, _) => ScreenTools.CaptureArea();
+        FullShotButton.Click += (_, _) => ScreenTools.CaptureFullScreen();
+        RecordButton.Click += (_, _) => ScreenTools.ToggleRecording();
+        ReadTextButton.Click += (_, _) => ScreenTools.ReadText();
+        QrButton.Click += (_, _) => ScreenTools.ScanQr();
+        EyedropperButton.Click += (_, _) => ScreenTools.PickColor();
         CommandBarTile.Click += (_, _) => AppServices.ToggleCommandBar();
         LockButton.Click += (_, _) => Guard(() => HomeNative.LockWorkStation());
         DownloadsButton.Click += (_, _) => ShellOpen(HomeNative.GetDownloadsFolder());
@@ -63,11 +73,17 @@ public partial class HomePage : UserControl
             AppServices.Media.Changed += OnMediaChanged;
             AppServices.Volume.Changed += OnVolumeChanged;
             AppServices.Settings.Changed += OnSettingsChanged;
+            Glint.Services.LyricsService.Shared.Changed += OnLyricsChanged;
+            Glint.Services.ReminderService.Shared.Changed += OnRemindersChanged;
+            ScreenTools.RecordingChanged += OnRecordingChanged;
         }
         catch (Exception ex)
         {
             App.LogError(ex);
         }
+        RebuildReminders();
+        UpdateRecordTile();
+        UpdateLyrics();
         RefreshMedia();
         SyncVolume();
         RebuildDock();
@@ -83,6 +99,9 @@ public partial class HomePage : UserControl
             AppServices.Media.Changed -= OnMediaChanged;
             AppServices.Volume.Changed -= OnVolumeChanged;
             AppServices.Settings.Changed -= OnSettingsChanged;
+            Glint.Services.LyricsService.Shared.Changed -= OnLyricsChanged;
+            Glint.Services.ReminderService.Shared.Changed -= OnRemindersChanged;
+            ScreenTools.RecordingChanged -= OnRecordingChanged;
         }
         catch (Exception ex)
         {
@@ -107,6 +126,55 @@ public partial class HomePage : UserControl
     void OnMediaChanged(object? sender, EventArgs e) => Dispatcher.InvokeAsync(RefreshMedia);
     void OnVolumeChanged(object? sender, EventArgs e) => Dispatcher.InvokeAsync(SyncVolume);
     void OnSettingsChanged(object? sender, EventArgs e) => Dispatcher.InvokeAsync(RebuildDock);
+    // Raised on the UI thread, at most once per sung line.
+    void OnLyricsChanged(object? sender, EventArgs e) => UpdateLyrics();
+
+    void UpdateLyrics()
+    {
+        var line = Glint.Services.LyricsService.Shared.CurrentLine;
+        LyricsLine.Text = line ?? string.Empty;
+        LyricsLine.ToolTip = line;
+        LyricsLine.Visibility = string.IsNullOrEmpty(line) ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    // ───────────── Upcoming reminders ─────────────
+
+    // Two rows fit above the quick actions; the rest are a click away in Заметки → Напоминания.
+    const int MaxReminderRows = 2;
+    readonly List<(Glint.Services.Reminder Reminder, TextBlock When)> _reminderRows = new();
+
+    // Raised on the UI thread.
+    void OnRemindersChanged(object? sender, EventArgs e) => RebuildReminders();
+
+    void RebuildReminders()
+    {
+        var items = Glint.Services.ReminderService.Shared.Snapshot();
+        ReminderRowsPanel.Children.Clear();
+        _reminderRows.Clear();
+        foreach (var r in items.Take(MaxReminderRows))
+        {
+            var row = ReminderRows.Build(this, r, compact: true, out var when);
+            _reminderRows.Add((r, when));
+            ReminderRowsPanel.Children.Add(row);
+        }
+        var more = items.Count - MaxReminderRows;
+        AllRemindersText.Text = more > 0 ? $"Ещё {more} — все напоминания" : string.Empty;
+        AllRemindersButton.Visibility = more > 0 ? Visibility.Visible : Visibility.Collapsed;
+        RemindersCard.Visibility = items.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        QuickActionsTitle.Visibility = items.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>Rides on the media progress tick, which only runs while the tab is visible.</summary>
+    void TickReminders()
+    {
+        if (_reminderRows.Count == 0) return;
+        var now = DateTime.Now;
+        foreach (var (r, when) in _reminderRows)
+        {
+            var text = Glint.Services.ReminderService.DescribeShort(r, now);
+            if (when.Text != text) when.Text = text;
+        }
+    }
 
     static void Guard(Action action)
     {
@@ -311,7 +379,7 @@ public partial class HomePage : UserControl
     {
         var silent = muted || VolumeSlider.Value < 0.5;
         MuteIcon.Text = silent ? Glyphs.Mute : Glyphs.Volume;
-        MuteIcon.Foreground = (Brush)FindResource(muted ? "DangerBrush" : "TextBrush");
+        MuteIcon.SetResourceReference(TextBlock.ForegroundProperty, muted ? "DangerBrush" : "TextBrush");
         MuteButton.ToolTip = muted ? "Включить звук" : "Выключить звук";
         VolumeText.Text = $"{Math.Round(VolumeSlider.Value)}%";
     }
@@ -337,98 +405,32 @@ public partial class HomePage : UserControl
         }
     }
 
-    async void StartRegionShot()
+    bool? _recordTileShowsStop;
+
+    // Raised on the UI thread.
+    void OnRecordingChanged(object? sender, EventArgs e) => UpdateRecordTile();
+
+    /// <summary>The record tile turns into a stop button with the running time; rides on the visible-only tick.</summary>
+    void UpdateRecordTile()
     {
-        if (_capturing) return;
-        _capturing = true;
-        var window = Window.GetWindow(this);
-        var restoreOpacity = window?.Opacity ?? 1;
-        try
+        var since = ScreenTools.RecordingSince;
+        if (since is DateTime start) RecordLabel.Text = "Стоп " + ScreenTools.FormatLength(DateTime.Now - start);
+        // The rest only changes when recording starts or stops.
+        var recording = since is not null;
+        if (recording == _recordTileShowsStop) return;
+        _recordTileShowsStop = recording;
+        if (recording)
         {
-            // The snipping overlay freezes the screen as it is, so get the open panel out of the picture first.
-            if (window is not null) window.Opacity = 0;
-            await Task.Delay(220);
-            ShellOpen("ms-screenclip:");
-            await Task.Delay(600);
+            RecordIcon.Text = Glyphs.Stop;
+            RecordIcon.SetResourceReference(TextBlock.ForegroundProperty, "DangerBrush");
+            RecordButton.ToolTip = "Остановить запись экрана";
         }
-        catch (Exception ex)
+        else
         {
-            App.LogError(ex);
-        }
-        finally
-        {
-            if (window is not null) window.Opacity = restoreOpacity;
-            _capturing = false;
-        }
-    }
-
-    async void CaptureFullScreen()
-    {
-        if (_capturing) return;
-        _capturing = true;
-        var window = Window.GetWindow(this);
-        var restoreOpacity = window?.Opacity ?? 1;
-        System.Drawing.Bitmap? bitmap = null;
-        try
-        {
-            // Hide the open panel so it isn't in the shot; give the compositor a couple of frames.
-            if (window is not null) window.Opacity = 0;
-            await Task.Delay(220);
-
-            (string path, bitmap) = await Task.Run(() => CaptureVirtualScreen());
-
-            if (window is not null) window.Opacity = restoreOpacity;
-            try
-            {
-                System.Windows.Forms.Clipboard.SetDataObject(bitmap, true, 5, 100);
-            }
-            catch (Exception ex)
-            {
-                // The file is saved either way; a locked clipboard isn't worth failing over.
-                App.LogError(ex);
-            }
-            AppServices.Notifier?.Flash("Скриншот сохранён", Path.GetFileName(path), Glyphs.Camera);
-        }
-        catch (Exception ex)
-        {
-            App.LogError(ex);
-            AppServices.Notifier?.Flash("Не удалось сделать скриншот", null, Glyphs.Info);
-        }
-        finally
-        {
-            if (window is not null) window.Opacity = restoreOpacity;
-            bitmap?.Dispose();
-            _capturing = false;
-        }
-    }
-
-    static (string Path, System.Drawing.Bitmap Bitmap) CaptureVirtualScreen()
-    {
-        // The process is per-monitor DPI aware, so these are physical pixels across all monitors.
-        var x = HomeNative.GetSystemMetrics(HomeNative.SM_XVIRTUALSCREEN);
-        var y = HomeNative.GetSystemMetrics(HomeNative.SM_YVIRTUALSCREEN);
-        var w = HomeNative.GetSystemMetrics(HomeNative.SM_CXVIRTUALSCREEN);
-        var h = HomeNative.GetSystemMetrics(HomeNative.SM_CYVIRTUALSCREEN);
-
-        var bmp = new System.Drawing.Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
-        try
-        {
-            using (var g = System.Drawing.Graphics.FromImage(bmp))
-                g.CopyFromScreen(x, y, 0, 0, new System.Drawing.Size(w, h), System.Drawing.CopyPixelOperation.SourceCopy);
-
-            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Glint");
-            Directory.CreateDirectory(dir);
-            var stem = $"Glint {DateTime.Now:yyyy-MM-dd HH-mm-ss}";
-            var path = Path.Combine(dir, stem + ".png");
-            for (var i = 2; File.Exists(path); i++) path = Path.Combine(dir, $"{stem} ({i}).png");
-
-            bmp.Save(path, System.Drawing.Imaging.ImageFormat.Png);
-            return (path, bmp);
-        }
-        catch
-        {
-            bmp.Dispose();
-            throw;
+            RecordIcon.Text = Glyphs.Record;
+            RecordIcon.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+            RecordLabel.Text = "Запись";
+            RecordButton.ToolTip = "Запись экрана в MP4";
         }
     }
 

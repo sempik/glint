@@ -14,21 +14,23 @@
             <ScaleTransform x:Name="RootScale" ScaleX="1" ScaleY="1"/>
         </Grid.LayoutTransform>
 
+        <!-- Ring shadow behind the bar (SoftShadow); a blur effect here was redone on every keystroke. -->
+        <Grid x:Name="BarShadow" Width="620" Margin="20,10,20,30" VerticalAlignment="Stretch" HorizontalAlignment="Center"
+              IsHitTestVisible="False"/>
+
         <Border x:Name="BarBorder"
                 Width="620" Margin="20,10,20,30" Padding="8"
                 VerticalAlignment="Top" HorizontalAlignment="Center"
                 CornerRadius="18"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource AccentStrokeBrush}" BorderThickness="1">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="30" ShadowDepth="8" Direction="270" Opacity="0.5" Color="#000000"/>
-            </Border.Effect>
 
             <StackPanel>
                 <Grid Margin="4,0,2,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
@@ -37,20 +39,27 @@
 
                     <TextBlock x:Name="Placeholder" Grid.Column="1"
                                Text="Программа, файл, 12*34, таймер 5 мин, &gt; команда"
-                               FontSize="16" Foreground="{StaticResource MutedBrush}"
+                               FontSize="16" Foreground="{DynamicResource MutedBrush}"
                                VerticalAlignment="Center" Margin="10,0,0,0" IsHitTestVisible="False"/>
 
                     <TextBox x:Name="QueryBox" Grid.Column="1"
                              FontSize="16" Background="Transparent" Padding="8,12"
                              VerticalAlignment="Center"/>
 
-                    <Border Grid.Column="2" Background="{DynamicResource CardBrush}" CornerRadius="7"
+                    <!-- Dictate the query; the words land in the box and the search runs as usual. -->
+                    <Button x:Name="MicButton" Grid.Column="2" Style="{StaticResource GhostButton}" Padding="8,6" Margin="6,0,0,0"
+                            Focusable="False" VerticalAlignment="Center" ToolTip="Сказать запрос голосом">
+                        <TextBlock x:Name="MicIcon" Style="{StaticResource Icon}" Text="&#xE720;" FontSize="14"
+                                   Foreground="{DynamicResource MutedBrush}"/>
+                    </Button>
+
+                    <Border Grid.Column="3" Background="{DynamicResource CardBrush}" CornerRadius="7"
                             Padding="8,3" Margin="8,0,6,0" VerticalAlignment="Center">
                         <TextBlock x:Name="HotkeyChip" Style="{StaticResource MutedText}" FontSize="11" Text="Alt+Space"/>
                     </Border>
                 </Grid>
 
-                <Border x:Name="Divider" Height="1" Margin="6,2,6,6" Background="{StaticResource DividerBrush}" Visibility="Collapsed"/>
+                <Border x:Name="Divider" Height="1" Margin="6,2,6,6" Background="{DynamicResource DividerBrush}" Visibility="Collapsed"/>
 
                 <StackPanel x:Name="Rows"/>
 

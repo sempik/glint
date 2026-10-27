@@ -14,6 +14,8 @@ public sealed class TrayIconService : IDisposable
     readonly Forms.NotifyIcon _icon;
     readonly Forms.ContextMenuStrip _menu;
     readonly Forms.ToolStripMenuItem _autostartItem;
+    readonly Forms.ToolStripMenuItem _clickThroughItem;
+    readonly Forms.ToolStripMenuItem _updateItem;
     Drawing.Icon? _drawnIcon;
     IntPtr _hIcon;
     bool _disposed;
@@ -40,10 +42,29 @@ public sealed class TrayIconService : IDisposable
         _autostartItem = new Forms.ToolStripMenuItem("Запускать с Windows") { CheckOnClick = false };
         _autostartItem.Click += (_, _) => OnUi(ToggleAutostart);
 
+        // Click-through makes the pill itself unreachable, so the tray can always switch it back off.
+        _clickThroughItem = new Forms.ToolStripMenuItem("Пропускать клики сквозь пилюлю") { CheckOnClick = false };
+        _clickThroughItem.Click += (_, _) => OnUi(ToggleClickThrough);
+        // Shown only while the automatic check (or the button) has found a newer release.
+        _updateItem = MakeItem("Доступно обновление", () => (AppServices.Notifier as PillWindow)?.ShowUpdate());
+        _updateItem.Visible = false;
+
+        _menu.Items.Add(_updateItem);
         _menu.Items.Add(MakeItem("Открыть", () => ExpandPanel(PillWindow.HomeTab)));
         var commandBarItem = MakeItem("Командная строка (Alt+Space)", () => AppServices.ToggleCommandBar());
         _menu.Items.Add(commandBarItem);
+        _menu.Items.Add(MakeItem("Скриншот", Glint.Capture.ScreenTools.CaptureArea));
+        // Also the way out of a recording when the pill is hidden over a fullscreen app.
+        var recordItem = MakeItem("Запись экрана", Glint.Capture.ScreenTools.ToggleRecording);
+        _menu.Items.Add(recordItem);
+        _menu.Items.Add(MakeItem("Заметки", () => ExpandPanel(PillWindow.NotesTab)));
+        _menu.Items.Add(MakeItem("Погода", () => ExpandPanel(PillWindow.WeatherTab)));
+        _menu.Items.Add(MakeItem("Пульт", () => ExpandPanel(PillWindow.ControlTab)));
+        // Only while agent events are accepted (Настройки → Агенты).
+        var agentsItem = MakeItem("Агенты", () => (AppServices.Notifier as PillWindow)?.ShowAgents());
+        _menu.Items.Add(agentsItem);
         _menu.Items.Add(MakeItem("Настройки", () => ExpandPanel(PillWindow.SettingsTab)));
+        _menu.Items.Add(_clickThroughItem);
         _menu.Items.Add(_autostartItem);
         _menu.Items.Add(new Forms.ToolStripSeparator());
         _menu.Items.Add(MakeItem("Выход", () => _onExit()));
@@ -53,8 +74,14 @@ public sealed class TrayIconService : IDisposable
         _menu.Opening += (_, _) =>
         {
             _autostartItem.Checked = Autostart.IsEnabled;
+            _clickThroughItem.Checked = AppServices.Settings?.Current.ClickThrough == true;
+            var update = UpdateService.Available;
+            _updateItem.Visible = update is not null;
+            if (update is not null) _updateItem.Text = $"Доступно обновление {update.Version.ToString(3)}";
             var hotkey = AppServices.Settings?.Current.CommandBarHotkey;
             commandBarItem.Text = string.IsNullOrEmpty(hotkey) ? "Командная строка" : $"Командная строка ({hotkey})";
+            recordItem.Text = Glint.Capture.ScreenTools.IsRecording ? "Остановить запись экрана" : "Запись экрана";
+            agentsItem.Visible = AppServices.Settings?.Current.Agents.Enabled == true;
         };
 
         _icon = new Forms.NotifyIcon
@@ -80,6 +107,8 @@ public sealed class TrayIconService : IDisposable
         {
             DarkColors.UpdateFromTheme();
             _menu.BackColor = DarkColors.Background;
+            _menu.ForeColor = DarkColors.Text;
+            foreach (Forms.ToolStripItem item in _menu.Items) item.ForeColor = DarkColors.Text;
             _menu.Invalidate();
 
             var drawn = CreateIcon();
@@ -145,6 +174,13 @@ public sealed class TrayIconService : IDisposable
         }
     }
 
+    static void ToggleClickThrough()
+    {
+        var s = AppServices.Settings.Current;
+        s.ClickThrough = !s.ClickThrough;
+        AppServices.Settings.Save();
+    }
+
     static void ToggleAutostart()
     {
         Autostart.Set(!Autostart.IsEnabled);
@@ -161,7 +197,7 @@ public sealed class TrayIconService : IDisposable
                 g.SmoothingMode = Drawing2D.SmoothingMode.AntiAlias;
                 g.Clear(Drawing.Color.Transparent);
 
-                // Dark pill with a thin gradient rim.
+                // Pill in the surface color (dark, or light in the light palette) with a thin gradient rim.
                 var pill = new Drawing.RectangleF(1.5f, 8.5f, 29f, 15f);
                 using var path = RoundedRect(pill, 7.5f);
                 var a1 = ThemeService.Accent;
@@ -182,7 +218,8 @@ public sealed class TrayIconService : IDisposable
                     g.FillEllipse(dotBrush, dot);
 
                 // Short bar on the left hints at the clock text.
-                using var bar = new Drawing.SolidBrush(Drawing.Color.FromArgb(230, 245, 245, 247));
+                var ink = ThemeService.Text;
+                using var bar = new Drawing.SolidBrush(Drawing.Color.FromArgb(230, ink.R, ink.G, ink.B));
                 using var barPath = RoundedRect(new Drawing.RectangleF(6f, 14.5f, 9f, 3f), 1.5f);
                 g.FillPath(bar, barPath);
             }
@@ -243,7 +280,7 @@ public sealed class TrayIconService : IDisposable
         public static Drawing.Color Background { get; private set; } = Drawing.Color.FromArgb(26, 26, 34);
         public static Drawing.Color Hover { get; private set; } = Drawing.Color.FromArgb(48, 48, 60);
         public static Drawing.Color Border { get; private set; } = Drawing.Color.FromArgb(52, 52, 64);
-        public static readonly Drawing.Color Text = Drawing.Color.FromArgb(245, 245, 247);
+        public static Drawing.Color Text { get; private set; } = Drawing.Color.FromArgb(245, 245, 247);
         static Drawing.Color Accent { get; set; } = Drawing.Color.FromArgb(167, 139, 250);
 
         public static void UpdateFromTheme()
@@ -252,10 +289,16 @@ public sealed class TrayIconService : IDisposable
             var accent = ThemeService.Accent;
             // Same offsets as the original graphite palette (#121218 → 26,26,34 / 48,48,60 / 52,52,64).
             static int C(int v, int add) => Math.Clamp(v + add, 0, 255);
-            Background = Drawing.Color.FromArgb(C(tint.R, 8), C(tint.G, 8), C(tint.B, 10));
-            Hover = Drawing.Color.FromArgb(C(tint.R, 30), C(tint.G, 30), C(tint.B, 36));
-            Border = Drawing.Color.FromArgb(C(tint.R, 34), C(tint.G, 34), C(tint.B, 40));
+            // The light palette goes the other way: hover and border are a bit darker than the menu.
+            var sign = ThemeService.IsLight ? -1 : 1;
+            Background = ThemeService.IsLight
+                ? Drawing.Color.FromArgb(C(tint.R, 6), C(tint.G, 6), C(tint.B, 6))
+                : Drawing.Color.FromArgb(C(tint.R, 8), C(tint.G, 8), C(tint.B, 10));
+            Hover = Drawing.Color.FromArgb(C(tint.R, sign * 22), C(tint.G, sign * 22), C(tint.B, sign * 20));
+            Border = Drawing.Color.FromArgb(C(tint.R, sign * 34), C(tint.G, sign * 34), C(tint.B, sign * 32));
             Accent = Drawing.Color.FromArgb(accent.R, accent.G, accent.B);
+            var text = ThemeService.Text;
+            Text = Drawing.Color.FromArgb(text.R, text.G, text.B);
         }
 
         public override Drawing.Color ToolStripDropDownBackground => Background;

@@ -8,7 +8,10 @@
     <FontFamily x:Key="UiFont">Segoe UI Variable Text, Segoe UI</FontFamily>
     <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
-    <!-- Fixed tokens (not user-themable). -->
+    <!--
+        Text tokens. ThemeService swaps TextColor/MutedColor and the Text/Muted/Divider brushes for the light
+        palette, so reference those brushes with DynamicResource too. Danger/Success are darkened there too; Knob stays fixed.
+    -->
     <Color x:Key="TextColor">#F5F5F7</Color>
     <Color x:Key="MutedColor">#9A9AA6</Color>
     <Color x:Key="DangerColor">#F87171</Color>
@@ -18,6 +21,8 @@
     <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}"/>
     <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}"/>
     <SolidColorBrush x:Key="DividerBrush" Color="#1FFFFFFF"/>
+    <!-- Slider and toggle knobs: light in both palettes, the dark stroke keeps them visible on white. -->
+    <SolidColorBrush x:Key="KnobBrush" Color="#F5F5F7"/>
 
     <!--
         Themable tokens. These are only defaults (the "Аврора" look) for the designer and first paint:
@@ -38,6 +43,8 @@
     <SolidColorBrush x:Key="MenuBackgroundBrush" Color="#F01A1A22"/>
     <SolidColorBrush x:Key="ScrollThumbBrush" Color="#40FFFFFF"/>
     <SolidColorBrush x:Key="WarningBrush" Color="#FBBF24"/>
+    <!-- Kept for text users; ThemeService darkens it with WarningBrush in the light palette. -->
+    <SolidColorBrush x:Key="WarningTextBrush" Color="#FBBF24"/>
 
     <LinearGradientBrush x:Key="AccentStrokeBrush" StartPoint="0,0" EndPoint="1,1">
         <GradientStop Color="#99A78BFA" Offset="0"/>
@@ -65,18 +72,18 @@
     <!-- Base text -->
     <Style TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
     </Style>
 
     <Style x:Key="MutedText" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-        <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
         <Setter Property="FontSize" Value="11.5"/>
     </Style>
 
     <Style x:Key="SectionTitle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-        <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
         <Setter Property="FontSize" Value="11"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Margin" Value="2,0,0,6"/>
@@ -84,7 +91,7 @@
 
     <Style x:Key="Icon" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
         <Setter Property="HorizontalAlignment" Value="Center"/>
@@ -99,7 +106,7 @@
 
     <!-- Flat button with hover fill; content can be text or an Icon TextBlock -->
     <Style x:Key="GhostButton" TargetType="Button">
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="FontSize" Value="12.5"/>
@@ -161,7 +168,7 @@
 
     <!-- Pill tab strip button -->
     <Style x:Key="TabButton" TargetType="RadioButton">
-        <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
@@ -176,7 +183,7 @@
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource CardHoverBrush}"/>
-                            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -186,7 +193,7 @@
 
     <!-- Dark text input -->
     <Style TargetType="TextBox">
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="CaretBrush" Value="{DynamicResource AccentBrush}"/>
         <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}"/>
         <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
@@ -210,7 +217,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
-                    <Ellipse Width="12" Height="12" Fill="{StaticResource TextBrush}" Stroke="#66000000" StrokeThickness="1"/>
+                    <Ellipse Width="12" Height="12" Fill="{StaticResource KnobBrush}" Stroke="#66000000" StrokeThickness="1"/>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -304,8 +311,8 @@
     <!-- Dark context menu -->
     <Style TargetType="ContextMenu">
         <Setter Property="Background" Value="{DynamicResource MenuBackgroundBrush}"/>
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}"/>
         <Setter Property="Padding" Value="4"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -318,7 +325,7 @@
         </Setter>
     </Style>
     <Style TargetType="MenuItem">
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -338,7 +345,7 @@
 
     <!-- Dark checkbox used as a toggle in settings -->
     <Style x:Key="ToggleSwitch" TargetType="CheckBox">
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
@@ -351,7 +358,7 @@
                         </Grid.ColumnDefinitions>
                         <ContentPresenter VerticalAlignment="Center" TextElement.Foreground="{TemplateBinding Foreground}" TextElement.FontFamily="{StaticResource UiFont}"/>
                         <Border x:Name="Track" Grid.Column="1" Width="36" Height="20" CornerRadius="10" Background="{DynamicResource CardHoverBrush}" Margin="12,0,0,0">
-                            <Ellipse x:Name="Knob" Width="14" Height="14" Fill="{StaticResource TextBrush}" Stroke="#66000000" StrokeThickness="1" HorizontalAlignment="Left" Margin="3,0"/>
+                            <Ellipse x:Name="Knob" Width="14" Height="14" Fill="{StaticResource KnobBrush}" Stroke="#66000000" StrokeThickness="1" HorizontalAlignment="Left" Margin="3,0"/>
                         </Border>
                     </Grid>
                     <ControlTemplate.Triggers>
@@ -367,8 +374,8 @@
 
     <Style TargetType="ToolTip">
         <Setter Property="Background" Value="{DynamicResource MenuBackgroundBrush}"/>
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}"/>
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="FontSize" Value="12"/>
         <Setter Property="Padding" Value="8,4"/>

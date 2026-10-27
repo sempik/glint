@@ -17,14 +17,15 @@ public sealed class SystemCommands : ICommandProvider
 
     static readonly BuiltIn[] BuiltIns =
     {
-        new("Скриншот области", "Выделить часть экрана", Glyphs.Camera,
-            new[] { "screenshot", "скриншот", "снимок", "screen", "snip" }, () => ShellRun.Open("ms-screenclip:")),
         new("Заблокировать компьютер", "То же, что Win+L", Glyphs.Lock,
             new[] { "lock", "блок", "заблокировать", "замок" }, () => Interop.LockWorkStation()),
         new("Настройки Windows", "Параметры системы", Glyphs.Settings,
             new[] { "settings", "параметры", "настройки", "windows" }, () => ShellRun.Open("ms-settings:")),
         new("Корзина", "Открыть корзину", Glyphs.Delete,
             new[] { "recycle", "trash", "корзина", "bin" }, () => ShellRun.Open("explorer.exe", "shell:RecycleBinFolder")),
+        // Glint's own screenshot lives in ScreenToolsProvider; the Windows tool stays one word away.
+        new("Ножницы Windows", "Системный инструмент для скриншотов", Glyphs.Camera,
+            new[] { "ножницы", "snipping", "snip" }, () => ShellRun.Open("ms-screenclip:")),
     };
 
     public IEnumerable<CommandResult> Query(string query, CancellationToken ct)

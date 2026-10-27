@@ -15,9 +15,11 @@ namespace Glint.Pill;
 
 public partial class PillWindow : Window, IPillNotifier
 {
-    public const int HomeTab = 0, ClipboardTab = 1, ShelfTab = 2, TextTab = 3, SystemTab = 4, SettingsTab = 5;
+    public const int HomeTab = 0, ClipboardTab = 1, ShelfTab = 2, TextTab = 3, NotesTab = 4, WeatherTab = 5, SystemTab = 6, ControlTab = 7,
+        AgentsTab = 8, SettingsTab = 9;
 
-    enum State { Pill, Flash, Expanded }
+    // Request: a coding agent's permission request or question is on screen with its buttons (PillWindow.Agents.cs).
+    enum State { Pill, Flash, Expanded, Request }
 
     // Unscaled sizes in DIPs. The page area inside the panel is about 650 x 330.
     const double PillWidth = 200, PillMediaWidth = 250, PillHeight = 36;
@@ -36,7 +38,12 @@ public partial class PillWindow : Window, IPillNotifier
         (Glyphs.Clipboard, "Буфер", () => new ClipboardPage()),
         (Glyphs.Shelf, "Полка", () => new ShelfPage()),
         (Glyphs.Text, "Текст", () => new TextToolsPage()),
+        (Glyphs.Note, "Заметки", () => new NotesPage()),
+        (Glyphs.Cloud, "Погода", () => new WeatherPage()),
         (Glyphs.Gauge, "Система", () => new SystemPage()),
+        (Glyphs.Sliders, "Пульт", () => new ControlPage()),
+        // Hidden until Настройки → Агенты accepts agent events (see UpdateAgentsTab).
+        (Glyphs.Agent, "Агенты", () => new AgentsPage()),
         (Glyphs.Settings, "Настройки", () => new SettingsPage()),
     };
     readonly Dictionary<int, FrameworkElement> _pages = new();
@@ -60,8 +67,9 @@ public partial class PillWindow : Window, IPillNotifier
     IntPtr _hwnd;
     FlashMessage? _pendingFlash;
     FlashMessage? _currentImportant;
+    FlashMessage? _currentFlash;
 
-    sealed record FlashMessage(string Title, string? Subtitle, string Glyph, TimeSpan? Duration, DateTime At);
+    sealed record FlashMessage(string Title, string? Subtitle, string Glyph, TimeSpan? Duration, DateTime At, Action? OnClick = null);
 
     double _scale = 1;
     bool _compact = true;
@@ -89,19 +97,38 @@ public partial class PillWindow : Window, IPillNotifier
         InitializeComponent();
         BuildTabs();
         BuildEqualizer();
+        InitIndicators();
+        InitBehavior();
+        InitCapture();
+        InitWeather();
+        InitVoice();
+        InitAgents();
+        InitMascot();
 
         _clock.Tick += (_, _) => ClockText.Text = DateTime.Now.ToString("HH:mm");
         _clock.Start();
         ClockText.Text = DateTime.Now.ToString("HH:mm");
 
-        _hoverIn.Tick += (_, _) => { _hoverIn.Stop(); if (_dragAnchor is null) Expand(); };
+        _hoverIn.Tick += (_, _) =>
+        {
+            _hoverIn.Stop();
+            // A clickable flash that arrived under the cursor stays put too (see OnShellMouseEnter).
+            if (_dragAnchor is null && _state != State.Request && !IsClickableFlash && !_hoverHeldAfterStop
+                && !IsOverRecordingChip && !IsOverVoiceChip && !IsOverAgentChip) Expand();
+        };
         _hoverOut.Tick += (_, _) => { _hoverOut.Stop(); TryCollapse(); };
         _flashTimer.Tick += (_, _) => { _flashTimer.Stop(); EndFlash(); };
         _visibilityRules.Tick += (_, _) => ApplyVisibilityRules();
         _visibilityRules.Start();
 
         Shell.MouseEnter += OnShellMouseEnter;
-        Shell.MouseLeave += (_, _) => { _hoverIn.Stop(); if (_state == State.Expanded) _hoverOut.Start(); };
+        Shell.MouseLeave += (_, _) =>
+        {
+            _hoverIn.Stop();
+            if (_state == State.Expanded) _hoverOut.Start();
+            // A clickable flash waited while the cursor was on it; let it run out now.
+            else if (IsClickableFlash && _dragAnchor is null) _flashTimer.Start();
+        };
         Deactivated += (_, _) => { if (_state == State.Expanded && !Shell.IsMouseOver) _hoverOut.Start(); };
 
         DragEnter += OnDragEnter;
@@ -128,7 +155,7 @@ public partial class PillWindow : Window, IPillNotifier
         Glint.Services.AudioActivity.Shared.Start();
         AppServices.Settings.Changed += (_, _) => ApplyLayout();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += (_, _) => Dispatcher.BeginInvoke(ApplyLayout);
-        SetShadow(full: false);
+        BuildShadow();
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -138,6 +165,8 @@ public partial class PillWindow : Window, IPillNotifier
         // Tool window: no Alt+Tab entry.
         Native.AddExStyle(_hwnd, Native.WS_EX_TOOLWINDOW);
         ApplyLayout();
+        // Auto-hide and click-through need the handle.
+        ApplyBehavior();
     }
 
     protected override void OnClosing(CancelEventArgs e)
@@ -155,10 +184,15 @@ public partial class PillWindow : Window, IPillNotifier
         if (work.Width > 0 && work.Height > 0)
             scale = Math.Max(0.5, Math.Min(scale, Math.Min(work.Width / WindowWidth, work.Height / WindowHeight)));
         RootScale.ScaleX = RootScale.ScaleY = scale;
-        // The cached surface sits under RootScale; render it at the final size so the stroke stays crisp.
-        ShellCache.RenderAtScale = scale * VisualTreeHelper.GetDpi(this).DpiScaleX;
+        var rescaled = scale != _scale;
         _scale = scale;
         ApplyWindowSize();
+        // The tuck offset is in scaled DIPs: keep exactly the strip showing, not the whole pill or none of it.
+        if (rescaled && _tucked)
+        {
+            ShellShift.BeginAnimation(TranslateTransform.YProperty, null);
+            ShellShift.Y = TuckedY;
+        }
         _hoverIn.Interval = TimeSpan.FromMilliseconds(Math.Max(0, AppServices.Settings.Current.HoverDelayMs));
     }
 
@@ -255,8 +289,25 @@ public partial class PillWindow : Window, IPillNotifier
         if (_dragAnchor is null) return;
         _dragAnchor = null;
         Mouse.OverrideCursor = null;
+        // Pressed and released without moving: a click, which a clickable flash turns into its action.
+        var click = _dragOffset is null && IsClickableFlash ? _currentFlash?.OnClick : null;
         if (_dragOffset is double offset) SavePillOffset(offset);
         _dragOffset = null;
+        if (click is not null)
+        {
+            try
+            {
+                click();
+            }
+            catch (Exception ex)
+            {
+                App.LogError(ex);
+            }
+            EndFlash();
+            // The click opened something (Explorer); don't unfold the panel under the cursor as well.
+            _hoverIn.Stop();
+            return;
+        }
         // Resume what the press paused: the flash countdown, and the hover that opens the panel.
         if (_state == State.Flash) _flashTimer.Start();
         if (Shell.IsMouseOver) { if (_state != State.Expanded) _hoverIn.Start(); }
@@ -305,11 +356,17 @@ public partial class PillWindow : Window, IPillNotifier
             var follow = new System.Windows.Data.Binding(nameof(Foreground)) { Source = button };
             icon.SetBinding(TextBlock.ForegroundProperty, follow);
             label.SetBinding(TextBlock.ForegroundProperty, follow);
-            button.Checked += (_, _) => { label.Visibility = Visibility.Visible; ShowTab(index); };
+            button.Checked += (_, _) =>
+            {
+                label.Visibility = _compactTabs ? Visibility.Collapsed : Visibility.Visible;
+                ShowTab(index);
+                FitTabsSoon();
+            };
             button.Unchecked += (_, _) => label.Visibility = Visibility.Collapsed;
             // Like browser tabs: dragging a file over a tab opens it, e.g. Home to pin a shortcut.
             button.DragEnter += (_, _) => button.IsChecked = true;
             _tabButtons.Add(button);
+            _tabLabels.Add(label);
             TabStrip.Children.Add(button);
         }
         _tabButtons[HomeTab].IsChecked = true;
@@ -331,34 +388,52 @@ public partial class PillWindow : Window, IPillNotifier
     void OnShellMouseEnter(object sender, MouseEventArgs e)
     {
         _hoverOut.Stop();
+        // A clickable flash stays put under the cursor instead of turning into the panel.
+        if (IsClickableFlash)
+        {
+            _flashTimer.Stop();
+            return;
+        }
+        // The request card stays as it is under the cursor; its buttons are the point.
+        if (_state == State.Request) return;
         if (_state != State.Expanded && !_hiddenByRule) _hoverIn.Start();
     }
+
+    bool IsClickableFlash => _state == State.Flash && _currentFlash?.OnClick is not null;
 
     /// <summary>Open the panel, optionally switching to a tab (see the *Tab constants).</summary>
     public void Expand(int? tab = null)
     {
         if (_hiddenByRule) return;
+        if (_state != State.Expanded) PerfBegin("expand");
         if (tab is int t && t != _currentTab) _tabButtons[t].IsChecked = true;
         else if (PageHost.Content is null) ShowTab(_currentTab);
+        PerfMark("tab");
 
         _flashTimer.Stop();
         if (_state == State.Expanded) return;
-        // An important message cut short by the panel is shown again after it collapses.
+        // An important message cut short by the panel is shown again after it collapses; so is an agent request.
         if (_state == State.Flash) RequeueCurrentImportant();
+        else if (_state == State.Request) LeaveRequestView();
         _state = State.Expanded;
+        Reveal();
+        UpdateClickThrough();
+        PerfMark("reveal");
 
         Fade(PillView, false);
         Fade(FlashView, false);
-        Fade(PanelView, true, delayMs: 90);
+        FadePanel(true, delayMs: 90);
+        PerfMark("fades");
         Shell.CornerRadius = new CornerRadius(26);
         SetShadow(full: true);
         AnimateShell(PanelWidth, PanelHeight);
+        PerfMark("animate");
     }
 
     void TryCollapse()
     {
         if (_state != State.Expanded || _pinnedOpen) return;
-        if (Shell.IsMouseOver || s_modalDepth > 0) return;
+        if (Shell.IsMouseOver || s_modalDepth > 0 || DictatingHere) return;
         if (s_openMenus > 0 || Mouse.Captured is not null)
         {
             // Closing the menu or releasing capture outside the panel raises no new MouseLeave; check again shortly.
@@ -366,22 +441,25 @@ public partial class PillWindow : Window, IPillNotifier
             return;
         }
         // While the user is typing inside the panel, wait until they click elsewhere (Deactivated).
-        if (IsActive && Keyboard.FocusedElement is TextBoxBase) return;
+        if (IsActive && Keyboard.FocusedElement is TextBoxBase or PasswordBox) return;
         Collapse();
     }
 
     void Collapse()
     {
         if (_state != State.Expanded) return;
+        PerfBegin("collapse");
         _state = State.Pill;
-        Fade(PanelView, false);
+        FadePanel(false);
         Fade(PillView, true, delayMs: 120);
         Shell.CornerRadius = new CornerRadius(PillHeight / 2);
         SetShadow(full: false);
         AnimateShell(CurrentPillWidth, PillHeight);
 
         if (_hiddenByRule) _pendingFlash = null;
-        else TryShowQueued();
+        else if (!TryShowRequest()) TryShowQueued();
+        UpdateClickThrough();
+        if (_state == State.Pill) ScheduleTuck();
     }
 
     void SetPinned(bool pinned)
@@ -394,36 +472,51 @@ public partial class PillWindow : Window, IPillNotifier
         if (!pinned) _hoverOut.Start();
     }
 
-    double CurrentPillWidth => _hasMedia ? PillMediaWidth : PillWidth;
+    // Never wider than the panel: the window has no room past that, and a wider shell loses its rounded ends.
+    double CurrentPillWidth => Math.Min(PanelWidth, (_hasMedia ? PillMediaWidth : PillWidth) + IndicatorExtraWidth);
 
     void AnimateShell(double width, double height)
     {
         var duration = TimeSpan.FromMilliseconds(340);
         var ease = new BackEase { Amplitude = 0.22, EasingMode = EasingMode.EaseOut };
         SetCompact(false);
+        PerfMark("window");
         // Near a screen edge the panel slides inward as it grows, and the pill slides back as it shrinks.
         _shellTargetWidth = width;
-        ShellShift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(ShiftFor(width), duration) { EasingFunction = ease });
+        ShellShift.BeginAnimation(TranslateTransform.XProperty, Capped(new DoubleAnimation(ShiftFor(width), duration) { EasingFunction = ease }));
         var generation = ++_shellAnimation;
         var widthAnim = new DoubleAnimation(width, duration) { EasingFunction = ease };
         // Shrink back only after the last animation settles on the plain pill (the pill's fade-in ends earlier).
         widthAnim.Completed += (_, _) => { if (generation == _shellAnimation && _state == State.Pill) SetCompact(true); };
-        Shell.BeginAnimation(WidthProperty, widthAnim);
-        Shell.BeginAnimation(HeightProperty, new DoubleAnimation(height, duration) { EasingFunction = ease });
+        Shell.BeginAnimation(WidthProperty, Capped(widthAnim));
+        Shell.BeginAnimation(HeightProperty, Capped(new DoubleAnimation(height, duration) { EasingFunction = ease }));
     }
 
     /// <summary>
-    /// A layered window takes clicks wherever alpha is non-zero, so a wide shadow around the small pill
-    /// would swallow clicks on browser tabs underneath. Keep it tight unless the panel is open.
+    /// Every frame repaints the whole layered window on the CPU; on a 165 Hz monitor an uncapped animation drew
+    /// ~155 frames a second. 60 looks just as smooth for a 340 ms move.
     /// </summary>
-    void SetShadow(bool full)
+    static DoubleAnimation Capped(DoubleAnimation animation)
     {
-        ShellShadow.BlurRadius = full ? 26 : 10;
-        ShellShadow.ShadowDepth = full ? 6 : 2;
-        ShellShadow.Opacity = full ? 0.45 : 0.35;
+        Timeline.SetDesiredFrameRate(animation, 60);
+        return animation;
     }
 
-    static void Fade(UIElement element, bool show, int delayMs = 0)
+    /// <summary>
+    /// Fading the whole panel would otherwise redraw every page element into an offscreen layer each frame.
+    /// While it fades it is drawn once into a bitmap at the final pixel scale, then goes back to live drawing
+    /// so graphs and timers on the page don't keep refreshing a cache.
+    /// </summary>
+    void FadePanel(bool show, int delayMs = 0)
+    {
+        var generation = ++_panelFade;
+        PanelView.CacheMode = new BitmapCache(_scale * VisualTreeHelper.GetDpi(this).DpiScaleX) { SnapsToDevicePixels = true };
+        Fade(PanelView, show, delayMs, () => { if (generation == _panelFade) PanelView.CacheMode = null; });
+    }
+
+    int _panelFade;
+
+    static void Fade(UIElement element, bool show, int delayMs = 0, Action? completed = null)
     {
         var anim = new DoubleAnimation(show ? 1 : 0, TimeSpan.FromMilliseconds(show ? 200 : 110))
         {
@@ -441,25 +534,45 @@ public partial class PillWindow : Window, IPillNotifier
                 if (element.Opacity == 0) element.Visibility = Visibility.Collapsed;
             };
         }
-        element.BeginAnimation(OpacityProperty, anim);
+        if (completed is not null) anim.Completed += (_, _) => completed();
+        element.BeginAnimation(OpacityProperty, Capped(anim));
     }
 
     // ───────────── Flash ─────────────
 
-    public void Flash(string title, string? subtitle = null, string glyph = Glyphs.Info, TimeSpan? duration = null)
+    public void Flash(string title, string? subtitle = null, string glyph = Glyphs.Info, TimeSpan? duration = null) =>
+        PostFlash(new FlashMessage(title, subtitle, glyph, duration, DateTime.UtcNow));
+
+    public void FlashClickable(string title, string? subtitle, string glyph, Action onClick, TimeSpan? duration = null) =>
+        PostFlash(new FlashMessage(title, subtitle, glyph, duration, DateTime.UtcNow, onClick));
+
+    /// <summary>
+    /// True when a flash posted now shows right away: not dropped over a fullscreen app, not parked behind the
+    /// open panel (where it expires) or an important message.
+    /// </summary>
+    public bool CanFlashNow
+    {
+        get
+        {
+            ApplyVisibilityRules();
+            return !_hiddenByRule && _state is not (State.Expanded or State.Request)
+                && !(_state == State.Flash && _currentImportant is not null);
+        }
+    }
+
+    void PostFlash(FlashMessage message)
     {
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(() => Flash(title, subtitle, glyph, duration));
+            Dispatcher.BeginInvoke(() => PostFlash(message));
             return;
         }
         // A hide decided before (e.g. for a window that has since closed) must not swallow the message.
         ApplyVisibilityRules();
         // Don't show over a fullscreen app.
         if (_hiddenByRule) return;
-        var message = new FlashMessage(title, subtitle, glyph, duration, DateTime.UtcNow);
-        // Don't interrupt an open panel or an important message: keep the latest and show it afterwards.
-        if (_state == State.Expanded || (_state == State.Flash && _currentImportant is not null))
+        // Don't interrupt an open panel, an agent request or an important message: keep the latest and show it afterwards.
+        if (_state is State.Expanded or State.Request || (_state == State.Flash && _currentImportant is not null))
         {
             _pendingFlash = message;
             return;
@@ -477,11 +590,12 @@ public partial class PillWindow : Window, IPillNotifier
         }
         ApplyVisibilityRules();
         var message = new FlashMessage(title, subtitle, glyph, duration, DateTime.UtcNow);
-        if (_hiddenByRule || _state == State.Expanded || (_state == State.Flash && _currentImportant is not null))
+        if (_hiddenByRule || _state is State.Expanded or State.Request || (_state == State.Flash && _currentImportant is not null))
         {
             _important.Add(message);
             // The pill can't show it right now; let Windows tell the user as well.
-            if (_hiddenByRule || _state == State.Expanded) AppServices.SystemNotify?.Invoke(title, subtitle);
+            // An agent request can hold the pill for minutes, so it counts too.
+            if (_hiddenByRule || _state is State.Expanded or State.Request) AppServices.SystemNotify?.Invoke(title, subtitle);
             return;
         }
         ShowFlash(message, important: true);
@@ -490,6 +604,10 @@ public partial class PillWindow : Window, IPillNotifier
     void ShowFlash(FlashMessage m, bool important)
     {
         _currentImportant = important ? m : null;
+        _currentFlash = m;
+        // Events bring an auto-hidden pill back for as long as the message shows.
+        Reveal();
+        FlashView.Cursor = m.OnClick is null ? null : Cursors.Hand;
 
         FlashTitle.Text = m.Title;
         FlashSubtitle.Text = m.Subtitle ?? string.Empty;
@@ -512,7 +630,8 @@ public partial class PillWindow : Window, IPillNotifier
 
         _flashTimer.Interval = m.Duration ?? TimeSpan.FromSeconds(2.4);
         _flashTimer.Stop();
-        _flashTimer.Start();
+        // Arriving under a resting cursor, a clickable flash waits for it to leave.
+        if (m.OnClick is null || !Shell.IsMouseOver) _flashTimer.Start();
     }
 
     /// <summary>Shows the next queued important message, else a recent pending one. Returns true if something is shown.</summary>
@@ -554,7 +673,8 @@ public partial class PillWindow : Window, IPillNotifier
         else
         {
             _currentImportant = null;
-            if (TryShowQueued()) return;
+            // A waiting agent request goes before queued messages: the agent is blocked until it is answered.
+            if (TryShowRequest() || TryShowQueued()) return;
         }
         _state = State.Pill;
         Fade(FlashView, false);
@@ -562,6 +682,7 @@ public partial class PillWindow : Window, IPillNotifier
         Shell.CornerRadius = new CornerRadius(PillHeight / 2);
         AnimateShell(CurrentPillWidth, PillHeight);
         if (Shell.IsMouseOver) _hoverIn.Start();
+        else ScheduleTuck();
     }
 
     // ───────────── Media indicator ─────────────
@@ -641,7 +762,9 @@ public partial class PillWindow : Window, IPillNotifier
 
         Equalizer.Visibility = _hasMedia ? Visibility.Visible : Visibility.Collapsed;
         // Nobody sees it while the pill is hidden over a fullscreen app, so don't spend frames on it.
-        SetEqualizerRunning((media?.IsPlaying == true || audibleOnly) && !_hiddenByRule);
+        SetEqualizerRunning((media?.IsPlaying == true || audibleOnly) && !_hiddenByRule && !_tucked);
+        // The character dances to the same thing; it stops by itself while out of sight.
+        _mascot?.SetMusic(media?.IsPlaying == true || audibleOnly);
 
         if (_state == State.Pill && hadMedia != _hasMedia) AnimateShell(CurrentPillWidth, PillHeight);
     }
@@ -679,6 +802,8 @@ public partial class PillWindow : Window, IPillNotifier
         var settings = AppServices.Settings.Current;
         var fg = Native.GetForegroundWindow();
         if (fg == IntPtr.Zero || fg == _hwnd) return;
+        // Where the keyboard goes back after an agent request is answered (the click activates the pill first).
+        _lastForeground = fg;
         // Our own windows (eyedropper overlay, command bar, dialogs) are never a reason to hide.
         Native.GetWindowThreadProcessId(fg, out var pid);
         if (pid == Environment.ProcessId) return;
@@ -720,10 +845,14 @@ public partial class PillWindow : Window, IPillNotifier
             SetPinned(false);
             Collapse();
             EndFlash();
+            HideRequestForRule();
         }
         Root.Visibility = hide ? Visibility.Hidden : Visibility.Visible;
         UpdateMedia();
-        // Reminders that fired while hidden are shown as soon as the pill is back.
-        if (!hide && _state == State.Pill) TryShowQueued();
+        UpdateAgentPulse();
+        // Reminders and agent requests that came while hidden are shown as soon as the pill is back.
+        if (!hide && _state == State.Pill && !TryShowRequest() && !TryShowQueued()) ScheduleTuck();
+        // No Ctrl probing while hidden.
+        UpdateClickThrough();
     }
 }

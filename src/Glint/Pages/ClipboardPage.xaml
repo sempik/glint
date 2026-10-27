@@ -29,7 +29,7 @@
 
                     <Border x:Name="KindBadge" Width="36" Height="36" CornerRadius="10" Background="{DynamicResource CardBrush}"
                             HorizontalAlignment="Left" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Text}" Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Text}" Foreground="{DynamicResource MutedBrush}"/>
                     </Border>
                     <Image x:Name="Thumb" Visibility="Collapsed" MaxWidth="48" MaxHeight="48" Stretch="Uniform"
                            HorizontalAlignment="Left" VerticalAlignment="Center"
@@ -53,7 +53,7 @@
                             <TextBlock Style="{StaticResource Icon}" FontSize="13" Text="{x:Static core:Glyphs.Copy}"/>
                         </Button>
                         <Button Style="{StaticResource RowActionButton}" Click="OnDeleteClick" ToolTip="Удалить">
-                            <TextBlock Style="{StaticResource Icon}" FontSize="13" Text="{x:Static core:Glyphs.Delete}" Foreground="{StaticResource DangerBrush}"/>
+                            <TextBlock Style="{StaticResource Icon}" FontSize="13" Text="{x:Static core:Glyphs.Delete}" Foreground="{DynamicResource DangerBrush}"/>
                         </Button>
                     </StackPanel>
                 </Grid>
@@ -95,7 +95,7 @@
                          PreviewMouseLeftButtonDown="OnSearchMouseDown"
                          PreviewKeyDown="OnSearchKeyDown"/>
                 <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Search}" FontSize="13"
-                           Foreground="{StaticResource MutedBrush}" HorizontalAlignment="Left" Margin="11,0,0,0" IsHitTestVisible="False"/>
+                           Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Left" Margin="11,0,0,0" IsHitTestVisible="False"/>
                 <TextBlock x:Name="Placeholder" Style="{StaticResource MutedText}" FontSize="13" Text="Поиск в буфере"
                            VerticalAlignment="Center" Margin="34,0,8,0" IsHitTestVisible="False"/>
             </Grid>
@@ -117,7 +117,7 @@
         <StackPanel x:Name="EmptyState" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
                     IsHitTestVisible="False" Visibility="Collapsed">
             <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Clipboard}" FontSize="28"
-                       Foreground="{StaticResource MutedBrush}" Margin="0,0,0,10"/>
+                       Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,10"/>
             <TextBlock x:Name="EmptyText" Style="{StaticResource MutedText}" FontSize="13" HorizontalAlignment="Center"/>
         </StackPanel>
 

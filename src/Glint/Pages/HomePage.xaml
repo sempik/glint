@@ -71,23 +71,29 @@
                             </Grid>
                         </Grid>
 
-                        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <Button x:Name="PrevButton" Style="{StaticResource RoundButton}" ToolTip="Предыдущий">
-                                <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Previous}"/>
-                            </Button>
-                            <Button x:Name="PlayPauseButton" Style="{StaticResource RoundButton}" Width="42" Height="42"
-                                    Margin="16,0" Background="{DynamicResource CardHoverBrush}" ToolTip="Воспроизвести">
-                                <TextBlock x:Name="PlayPauseIcon" Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Play}" FontSize="16"/>
-                            </Button>
-                            <Button x:Name="NextButton" Style="{StaticResource RoundButton}" ToolTip="Следующий">
-                                <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Next}"/>
-                            </Button>
+                        <StackPanel Grid.Row="2" VerticalAlignment="Center">
+                            <!-- Current synced lyrics line (Настройки → Индикаторы → Текст песни). -->
+                            <TextBlock x:Name="LyricsLine" Style="{StaticResource MutedText}" FontSize="12.5"
+                                       HorizontalAlignment="Center" TextAlignment="Center" Margin="0,0,0,8"
+                                       Visibility="Collapsed"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Button x:Name="PrevButton" Style="{StaticResource RoundButton}" ToolTip="Предыдущий">
+                                    <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Previous}"/>
+                                </Button>
+                                <Button x:Name="PlayPauseButton" Style="{StaticResource RoundButton}" Width="42" Height="42"
+                                        Margin="16,0" Background="{DynamicResource CardHoverBrush}" ToolTip="Воспроизвести">
+                                    <TextBlock x:Name="PlayPauseIcon" Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Play}" FontSize="16"/>
+                                </Button>
+                                <Button x:Name="NextButton" Style="{StaticResource RoundButton}" ToolTip="Следующий">
+                                    <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Next}"/>
+                                </Button>
+                            </StackPanel>
                         </StackPanel>
                     </Grid>
 
                     <StackPanel x:Name="MediaEmpty" VerticalAlignment="Center" HorizontalAlignment="Center">
                         <Border Width="48" Height="48" CornerRadius="24" Background="{DynamicResource CardBrush}" HorizontalAlignment="Center">
-                            <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Music}" FontSize="20" Foreground="{StaticResource MutedBrush}"/>
+                            <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Music}" FontSize="20" Foreground="{DynamicResource MutedBrush}"/>
                         </Border>
                         <TextBlock Text="Ничего не играет" HorizontalAlignment="Center" Margin="0,10,0,0" FontWeight="SemiBold"/>
                         <TextBlock Style="{StaticResource MutedText}" HorizontalAlignment="Center" TextAlignment="Center"
@@ -117,42 +123,70 @@
 
         <!-- ───── Quick actions ───── -->
         <DockPanel Grid.Column="1">
-            <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionTitle}" Text="Быстрые действия"/>
-            <UniformGrid Columns="2" Rows="3" Margin="-3">
-                <Button x:Name="RegionShotButton" Style="{StaticResource TileButton}" Margin="3" Padding="10,8">
+            <!-- Upcoming reminders and timers, only while there are any (rows filled in code); the quick actions
+                 title steps aside to make room. -->
+            <StackPanel x:Name="RemindersCard" DockPanel.Dock="Top" Margin="0,0,0,6" Visibility="Collapsed">
+                <StackPanel x:Name="ReminderRowsPanel"/>
+                <Button x:Name="AllRemindersButton" Style="{StaticResource GhostButton}" Padding="8,2" HorizontalAlignment="Left"
+                        Visibility="Collapsed" Focusable="False">
+                    <TextBlock x:Name="AllRemindersText" FontSize="11.5" Foreground="{DynamicResource AccentBrush}"/>
+                </Button>
+            </StackPanel>
+            <TextBlock x:Name="QuickActionsTitle" DockPanel.Dock="Top" Style="{StaticResource SectionTitle}" Text="Быстрые действия"/>
+            <!-- Nine compact tiles: screen tools first, then the rest. Short labels; tooltips say more. -->
+            <UniformGrid Columns="3" Rows="3" Margin="-3">
+                <Button x:Name="AreaShotButton" Style="{StaticResource TileButton}" Margin="3" Padding="9,7" ToolTip="Скриншот области или окна с пометками">
                     <StackPanel>
                         <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Camera}" FontSize="16" HorizontalAlignment="Left" Foreground="{DynamicResource AccentBrush}"/>
-                        <TextBlock Text="Скриншот области" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Text="Скриншот" FontSize="11.5" Margin="0,5,0,0"/>
                     </StackPanel>
                 </Button>
-                <Button x:Name="FullShotButton" Style="{StaticResource TileButton}" Margin="3" Padding="10,8">
+                <Button x:Name="FullShotButton" Style="{StaticResource TileButton}" Margin="3" Padding="9,7" ToolTip="Скриншот всего экрана с пометками">
                     <StackPanel>
                         <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Image}" FontSize="16" HorizontalAlignment="Left" Foreground="{DynamicResource AccentBrush}"/>
-                        <TextBlock Text="Весь экран" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Text="Весь экран" FontSize="11.5" Margin="0,5,0,0"/>
                     </StackPanel>
                 </Button>
-                <Button x:Name="EyedropperButton" Style="{StaticResource TileButton}" Margin="3" Padding="10,8">
+                <Button x:Name="RecordButton" Style="{StaticResource TileButton}" Margin="3" Padding="9,7" ToolTip="Запись экрана в MP4">
+                    <StackPanel>
+                        <TextBlock x:Name="RecordIcon" Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Record}" FontSize="16" HorizontalAlignment="Left" Foreground="{DynamicResource AccentBrush}"/>
+                        <TextBlock x:Name="RecordLabel" Text="Запись" FontSize="11.5" Margin="0,5,0,0"/>
+                    </StackPanel>
+                </Button>
+                <Button x:Name="ReadTextButton" Style="{StaticResource TileButton}" Margin="3" Padding="9,7" ToolTip="Распознать текст с экрана и скопировать">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.ScanText}" FontSize="16" HorizontalAlignment="Left" Foreground="{DynamicResource Accent2Brush}"/>
+                        <TextBlock Text="Текст" FontSize="11.5" Margin="0,5,0,0"/>
+                    </StackPanel>
+                </Button>
+                <Button x:Name="QrButton" Style="{StaticResource TileButton}" Margin="3" Padding="9,7" ToolTip="Прочитать QR-код или штрихкод с экрана">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.QrCode}" FontSize="16" HorizontalAlignment="Left" Foreground="{DynamicResource Accent2Brush}"/>
+                        <TextBlock Text="QR-код" FontSize="11.5" Margin="0,5,0,0"/>
+                    </StackPanel>
+                </Button>
+                <Button x:Name="EyedropperButton" Style="{StaticResource TileButton}" Margin="3" Padding="9,7" ToolTip="Цвет с экрана с лупой; копирует HEX">
                     <StackPanel>
                         <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Eyedropper}" FontSize="16" HorizontalAlignment="Left" Foreground="{DynamicResource Accent2Brush}"/>
-                        <TextBlock Text="Пипетка" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Text="Пипетка" FontSize="11.5" Margin="0,5,0,0"/>
                     </StackPanel>
                 </Button>
-                <Button x:Name="CommandBarTile" Style="{StaticResource TileButton}" Margin="3" Padding="10,8">
+                <Button x:Name="CommandBarTile" Style="{StaticResource TileButton}" Margin="3" Padding="9,7" ToolTip="Командная строка">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Search}" FontSize="16" HorizontalAlignment="Left" Foreground="{DynamicResource Accent2Brush}"/>
-                        <TextBlock Text="Командная строка" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Search}" FontSize="16" HorizontalAlignment="Left" Foreground="{DynamicResource AccentBrush}"/>
+                        <TextBlock Text="Команды" FontSize="11.5" Margin="0,5,0,0"/>
                     </StackPanel>
                 </Button>
-                <Button x:Name="LockButton" Style="{StaticResource TileButton}" Margin="3" Padding="10,8">
+                <Button x:Name="LockButton" Style="{StaticResource TileButton}" Margin="3" Padding="9,7" ToolTip="Заблокировать компьютер">
                     <StackPanel>
                         <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Lock}" FontSize="16" HorizontalAlignment="Left" Foreground="{DynamicResource AccentBrush}"/>
-                        <TextBlock Text="Блокировка" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Text="Блокировка" FontSize="11.5" Margin="0,5,0,0"/>
                     </StackPanel>
                 </Button>
-                <Button x:Name="DownloadsButton" Style="{StaticResource TileButton}" Margin="3" Padding="10,8">
+                <Button x:Name="DownloadsButton" Style="{StaticResource TileButton}" Margin="3" Padding="9,7" ToolTip="Папка загрузок">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Download}" FontSize="16" HorizontalAlignment="Left" Foreground="{DynamicResource Accent2Brush}"/>
-                        <TextBlock Text="Папка загрузок" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Download}" FontSize="16" HorizontalAlignment="Left" Foreground="{DynamicResource AccentBrush}"/>
+                        <TextBlock Text="Загрузки" FontSize="11.5" Margin="0,5,0,0"/>
                     </StackPanel>
                 </Button>
             </UniformGrid>
@@ -164,7 +198,7 @@
             <DockPanel LastChildFill="True">
                 <Button x:Name="AddDockButton" DockPanel.Dock="Right" Style="{StaticResource GhostButton}"
                         Padding="10" VerticalAlignment="Center" ToolTip="Закрепить приложение">
-                    <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Add}" Foreground="{StaticResource MutedBrush}"/>
+                    <TextBlock Style="{StaticResource Icon}" Text="{x:Static core:Glyphs.Add}" Foreground="{DynamicResource MutedBrush}"/>
                 </Button>
                 <Grid>
                     <TextBlock x:Name="DockHint" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="8,0"
