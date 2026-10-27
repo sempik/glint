@@ -17,10 +17,15 @@
 - **Скрытие в полноэкранных приложениях** и в выбранных программах.
 - **Значок в трее** с меню и автозапуском.
 
+## Скачать
+
+[**Glint.exe**](https://github.com/sempik/glint/releases/latest/download/Glint.exe) — один файл, установка не нужна, .NET ставить не надо. Просто запустите. Есть и [zip-архив](https://github.com/sempik/glint/releases/latest/download/Glint-win-x64.zip); контрольные суммы в `SHA256SUMS.txt` на странице [релиза](https://github.com/sempik/glint/releases/latest).
+
+Файл не подписан платным сертификатом, поэтому Windows SmartScreen может предупредить при первом запуске: «Подробнее» → «Выполнить в любом случае». Сборки делает GitHub Actions прямо из этого репозитория.
+
 ## Требования
 
 - Windows 10 версии 2004 (сборка 19041) или новее, либо Windows 11, x64
-- [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) (для релизной сборки)
 
 ## Сборка
 
@@ -35,7 +40,7 @@ dotnet build
 Один exe-файл для распространения:
 
 ```powershell
-dotnet publish src/Glint/Glint.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
+dotnet publish src/Glint/Glint.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o publish
 ```
 
 Готовые сборки появляются в [Releases](https://github.com/sempik/glint/releases) автоматически при пуше тега `v*`.
@@ -62,10 +67,12 @@ Glint — независимый проект с открытым исходны
 
 **Features:** clock & media pill with flash messages; hover panel with tabs; media controls and volume; quick actions (full-screen screenshot saved to Pictures\Glint, region screenshot via the Windows Snipping Tool, eyedropper, lock, downloads); clipboard history with search, pinning and click-to-paste; file shelf with drag in/out; Alt+Space command bar (apps, files, calculator, timers, web search); text tools (keyboard layout fix, transliteration, case, JSON, Base64); system load tab (CPU total/per-thread/clock, GPU, RAM, disks, network, top processes, one-minute graphs; GPU temperature, VRAM, power and fan on NVIDIA; no CPU temperature, since Windows only exposes it to kernel drivers; sampling runs only while the tab is open); color themes (seven presets, custom HEX accents, background tint and opacity, applied live without a restart, tray icon included); auto-hide in fullscreen and selected apps; tray icon with autostart.
 
-**Requirements:** Windows 10 19041+ or Windows 11, x64, .NET 8 Desktop Runtime.
+**Download:** [Glint.exe](https://github.com/sempik/glint/releases/latest/download/Glint.exe) — a single self-contained file, no installer and no .NET runtime needed. It isn't code-signed, so SmartScreen may warn on first run ("More info" → "Run anyway"). Release builds are produced by GitHub Actions from this repository.
+
+**Requirements:** Windows 10 19041+ or Windows 11, x64.
 
 **Build:** install the .NET 8 SDK, then run `dotnet build`, or
-`dotnet publish src/Glint/Glint.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish`.
+`dotnet publish src/Glint/Glint.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o publish`.
 
 **Privacy:** all data stays on your machine in `%AppData%\Glint`. No telemetry. Clipboard history (text and images) is stored **unencrypted** there (`clipboard.json` and `clips\`) and survives restarts. Content that password managers mark as private is not saved. Use "Очистить" in the clipboard tab or delete the folder to remove it.
 
