@@ -18,6 +18,8 @@ public sealed class AppSettings
     public int HoverDelayMs { get; set; } = 120;
     /// <summary>Horizontal shift of the pill from the screen center, DIPs; set by dragging it.</summary>
     public double PillOffset { get; set; }
+    /// <summary>Device name of the monitor the pill lives on (\\.\DISPLAY2); empty = the primary monitor.</summary>
+    public string PillDisplay { get; set; } = "";
 
     /// <summary>Id of the chosen preset (see ThemeService.Presets) or "custom".</summary>
     public string ThemePreset { get; set; } = "aurora";
@@ -111,6 +113,7 @@ public sealed class SettingsStore
         Current.Scale = Math.Clamp(Current.Scale, 0.8, 2.0);
         // The pill clamps it to the current screen; this only rejects junk.
         if (!double.IsFinite(Current.PillOffset)) Current.PillOffset = 0;
+        Current.PillDisplay ??= "";
         // Bad HEX, unknown tint or out-of-range opacity fall back to the defaults.
         Glint.Services.ThemeService.Normalize(Current);
     }

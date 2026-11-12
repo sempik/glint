@@ -50,6 +50,7 @@ public partial class SettingsPage : UserControl
         BuildMascotControls();
         WatchAvailableUpdate();
         WatchOutsideChanges();
+        WatchDisplays();
         LoadFromSettings();
         _loading = false;
     }
@@ -439,6 +440,60 @@ public partial class SettingsPage : UserControl
         S.PillOffset = 0;
         _saveDebounce.Stop();
         Save();
+    }
+
+    // The monitor list is rebuilt whenever the page appears and when a monitor is plugged in or out.
+    void WatchDisplays()
+    {
+        Loaded += (_, _) =>
+        {
+            Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaysChanged;
+            Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaysChanged;
+            BuildDisplayButtons();
+        };
+        Unloaded += (_, _) => Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaysChanged;
+    }
+
+    void OnDisplaysChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(BuildDisplayButtons);
+
+    void BuildDisplayButtons()
+    {
+        DisplayPanel.Children.Clear();
+        var displays = Displays.All();
+        var chosen = S.PillDisplay ?? "";
+        AddDisplayButton("", "Основной", "Тот, что выбран основным в параметрах Windows", chosen.Length == 0);
+        var known = chosen.Length == 0;
+        foreach (var d in displays)
+        {
+            var match = chosen.Length > 0 && string.Equals(d.Id, chosen, StringComparison.OrdinalIgnoreCase);
+            known |= match;
+            var name = d.Number > 0 ? $"{d.Number} · {d.Bounds.Width}×{d.Bounds.Height}" : $"{d.Bounds.Width}×{d.Bounds.Height}";
+            AddDisplayButton(d.Id, name, d.Primary ? "Сейчас основной" : null, match);
+        }
+        DisplayHint.Visibility = known ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    void AddDisplayButton(string id, string name, string? tip, bool selected)
+    {
+        var button = new RadioButton
+        {
+            Style = (Style)FindResource("TabButton"),
+            GroupName = "PillDisplay",
+            Content = new TextBlock { Text = name, FontSize = 12 },
+            ToolTip = tip,
+            IsChecked = selected,
+        };
+        // The template's ContentPresenter sets the foreground; the implicit TextBlock style would override it.
+        ((TextBlock)button.Content).SetBinding(TextBlock.ForegroundProperty, new System.Windows.Data.Binding(nameof(Foreground)) { Source = button });
+        button.Checked += (_, _) =>
+        {
+            if (_loading || string.Equals(S.PillDisplay, id, StringComparison.OrdinalIgnoreCase)) return;
+            S.PillDisplay = id;
+            DisplayHint.Visibility = Visibility.Collapsed;
+            _saveDebounce.Stop();
+            Save();
+        };
+        DisplayPanel.Children.Add(button);
     }
 
     void HoverSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

@@ -56,6 +56,8 @@ public partial class CommandBarWindow : Window
         PreviewKeyDown += OnPreviewKeyDown;
         Deactivated += (_, _) => HideBar();
         AppServices.Settings.Changed += (_, _) => { if (IsVisible) ApplyLayout(); };
+        // Shown on a monitor with another scale: center again once the new DPI is in effect.
+        DpiChanged += (_, _) => Dispatcher.BeginInvoke(() => { if (IsVisible) ApplyLayout(); });
         // Rates arrive a moment after "100 usd" is typed; show them without another keystroke.
         Glint.Services.CurrencyRates.Shared.Updated += (_, _) => Dispatcher.BeginInvoke(() => { if (IsVisible) _ = RefreshAsync(); });
 
@@ -140,8 +142,11 @@ public partial class CommandBarWindow : Window
         var scale = Math.Clamp(settings.Scale, 0.8, 2.0);
         RootScale.ScaleX = RootScale.ScaleY = scale;
         Width = (BarWidth + SideMargin * 2) * scale;
-        Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
-        Top = (TopOffset - TopMargin) * scale;
+        // Same monitor as the pill, in this window's DIPs (see PillWindow.ScreenArea).
+        var display = Displays.Resolve(settings.PillDisplay).Bounds;
+        var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
+        Left = (display.X + display.Width / 2.0) / dpi.DpiScaleX - Width / 2;
+        Top = display.Y / dpi.DpiScaleY + (TopOffset - TopMargin) * scale;
         HotkeyChip.Text = string.IsNullOrWhiteSpace(settings.CommandBarHotkey) ? "Alt+Space" : settings.CommandBarHotkey;
     }
 

@@ -145,7 +145,8 @@ public partial class PillWindow : Window, IPillNotifier
         Shell.MouseMove += OnDragMove;
         Shell.MouseLeftButtonUp += OnDragUp;
         Shell.LostMouseCapture += OnDragCaptureLost;
-        DpiChanged += (_, _) => ApplyLayout();
+        // Deferred: the new DPI is applied to the window only after this event returns.
+        DpiChanged += (_, _) => Dispatcher.BeginInvoke(ApplyLayout);
 
         PinButton.Click += (_, _) => SetPinned(!_pinnedOpen);
         CommandBarButton.Click += (_, _) => AppServices.ToggleCommandBar();
@@ -180,7 +181,7 @@ public partial class PillWindow : Window, IPillNotifier
     {
         var scale = Math.Clamp(AppServices.Settings.Current.Scale, 0.8, 2.0);
         // Never let the expanded panel run off a small screen.
-        var work = SystemParameters.WorkArea;
+        var work = ToDips(Display.Work);
         if (work.Width > 0 && work.Height > 0)
             scale = Math.Max(0.5, Math.Min(scale, Math.Min(work.Width / WindowWidth, work.Height / WindowHeight)));
         RootScale.ScaleX = RootScale.ScaleY = scale;
@@ -207,25 +208,34 @@ public partial class PillWindow : Window, IPillNotifier
         Width = WindowWidth * _scale;
         Height = (_compact ? CompactHeight : WindowHeight) * _scale;
         // The window stays on screen; near an edge the shell is shifted inside it (see ShiftFor).
-        var screen = ScreenWidth;
-        Left = Math.Clamp(screen / 2 + CurrentOffset - Width / 2, 0, Math.Max(0, screen - Width));
-        Top = 0;
+        var screen = ScreenArea;
+        Left = screen.Left + Math.Clamp(screen.Width / 2 + CurrentOffset - Width / 2, 0, Math.Max(0, screen.Width - Width));
+        Top = screen.Top;
         ShellShift.BeginAnimation(TranslateTransform.XProperty, null);
         ShellShift.X = ShiftFor(_shellTargetWidth);
     }
 
-    /// <summary>
-    /// Primary screen width in this window's DIPs. SystemParameters converts with the DPI cached at startup,
-    /// which goes stale when the display scale changes while Glint runs.
-    /// </summary>
-    double ScreenWidth => Glint.Pages.HomeNative.GetSystemMetrics(SM_CXSCREEN) / VisualTreeHelper.GetDpi(this).DpiScaleX;
+    /// <summary>The monitor chosen in Настройки → Вид; the primary one by default or while the chosen one is unplugged.</summary>
+    static DisplayInfo Display => Displays.Resolve(AppServices.Settings.Current.PillDisplay);
 
-    const int SM_CXSCREEN = 0;
+    /// <summary>
+    /// The pill's monitor in this window's DIPs. SystemParameters converts with the DPI cached at startup,
+    /// which goes stale when the display scale changes while Glint runs. While the window is still on a monitor
+    /// with another scale the numbers are in that monitor's DIPs, which is what Left/Top expect; the DPI change
+    /// that follows the move lays everything out again.
+    /// </summary>
+    Rect ScreenArea => ToDips(Display.Bounds);
+
+    Rect ToDips(Int32Rect pixels)
+    {
+        var dpi = VisualTreeHelper.GetDpi(this);
+        return new Rect(pixels.X / dpi.DpiScaleX, pixels.Y / dpi.DpiScaleY, pixels.Width / dpi.DpiScaleX, pixels.Height / dpi.DpiScaleY);
+    }
 
     /// <summary>The pill itself may go right up to a screen edge, clear of the browser tabs it would cover.</summary>
     double ClampOffset(double offset)
     {
-        var room = Math.Max(0, ScreenWidth / 2 - (PillMediaWidth / 2 + 8) * _scale);
+        var room = Math.Max(0, ScreenArea.Width / 2 - (PillMediaWidth / 2 + 8) * _scale);
         return Math.Clamp(offset, -room, room);
     }
 
@@ -237,7 +247,8 @@ public partial class PillWindow : Window, IPillNotifier
     /// </summary>
     double ShiftFor(double shellWidth)
     {
-        var shift = ScreenWidth / 2 + CurrentOffset - (Left + Width / 2);
+        var screen = ScreenArea;
+        var shift = screen.Left + screen.Width / 2 + CurrentOffset - (Left + Width / 2);
         var room = Math.Max(0, (Width - (shellWidth + 40) * _scale) / 2);
         return Math.Clamp(shift, -room, room);
     }
