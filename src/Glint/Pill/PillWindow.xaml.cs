@@ -26,8 +26,10 @@ public partial class PillWindow : Window, IPillNotifier
     const double FlashWidth = 380, FlashHeight = 56, FlashCompactHeight = 44;
     const double PanelWidth = 680, PanelHeight = 400;
     const double WindowWidth = 720, WindowHeight = 470;
-    // Collapsed pill plus the Shell's top (8) and bottom (30, room for the shadow) margins.
-    const double CompactHeight = PillHeight + 38;
+    // Gap between the shell and the screen edge it sits at, and the room on its other side (for the shadow).
+    const double EdgeGap = 8, FarGap = 30;
+    // Collapsed pill plus the Shell's vertical margins.
+    const double CompactHeight = PillHeight + EdgeGap + FarGap;
 
     static int s_openMenus;
     static int s_modalDepth;
@@ -76,7 +78,9 @@ public partial class PillWindow : Window, IPillNotifier
     int _shellAnimation;
     bool? _equalizerRunning;
     double? _dragAnchor;
+    double _dragAnchorY;
     double _dragStartOffset;
+    bool? _edgeApplied;
     double? _dragOffset;
     double _shellTargetWidth = PillWidth;
 
@@ -187,6 +191,7 @@ public partial class PillWindow : Window, IPillNotifier
         RootScale.ScaleX = RootScale.ScaleY = scale;
         var rescaled = scale != _scale;
         _scale = scale;
+        ApplyEdge();
         ApplyWindowSize();
         // The tuck offset is in scaled DIPs: keep exactly the strip showing, not the whole pill or none of it.
         if (rescaled && _tucked)
@@ -202,17 +207,41 @@ public partial class PillWindow : Window, IPillNotifier
     /// resting pill keeps the window only as tall as itself; the panel, flashes and animations get the full height.
     /// Only the height changes: a layered window shows its previous bitmap until the next frame, so moving its
     /// origin would make the pill jump for a frame, while growing or shrinking downward leaves it in place.
+    /// At the bottom the window would have to grow upward, moving its origin, so there it keeps the full height.
     /// </summary>
     void ApplyWindowSize()
     {
+        var bottom = AtBottom;
         Width = WindowWidth * _scale;
-        Height = (_compact ? CompactHeight : WindowHeight) * _scale;
+        Height = (_compact && !bottom ? CompactHeight : WindowHeight) * _scale;
         // The window stays on screen; near an edge the shell is shifted inside it (see ShiftFor).
         var screen = ScreenArea;
         Left = screen.Left + Math.Clamp(screen.Width / 2 + CurrentOffset - Width / 2, 0, Math.Max(0, screen.Width - Width));
-        Top = screen.Top;
+        // At the bottom the pill rests on the taskbar, not over it: the window ends where the work area does.
+        var work = ToDips(Display.Work);
+        var floor = work.Height > 0 ? work.Bottom : screen.Bottom;
+        Top = bottom ? floor - Height : screen.Top;
         ShellShift.BeginAnimation(TranslateTransform.XProperty, null);
         ShellShift.X = ShiftFor(_shellTargetWidth);
+    }
+
+    static bool AtBottom => AppServices.Settings.Current.PillAtBottom;
+
+    /// <summary>
+    /// Anchors the shell to the screen edge the pill lives at. The layout is the same either way, mirrored
+    /// vertically: at the bottom the shell grows upward and the panel inside it stays put at its lower end.
+    /// </summary>
+    void ApplyEdge()
+    {
+        var bottom = AtBottom;
+        if (_edgeApplied == bottom) return;
+        _edgeApplied = bottom;
+        var anchor = bottom ? VerticalAlignment.Bottom : VerticalAlignment.Top;
+        Stage.VerticalAlignment = Root.VerticalAlignment = ShellLayer.VerticalAlignment = Shell.VerticalAlignment = anchor;
+        PanelView.VerticalAlignment = HoverLip.VerticalAlignment = anchor;
+        ShellLayer.Margin = Shell.Margin = bottom ? new Thickness(20, FarGap, 20, EdgeGap) : new Thickness(20, EdgeGap, 20, FarGap);
+        // The lip covers the gap between the shell and its edge (see the XAML).
+        HoverLip.Margin = bottom ? new Thickness(0, 0, 0, -9) : new Thickness(0, -9, 0, 0);
     }
 
     /// <summary>The monitor chosen in Настройки → Вид; the primary one by default or while the chosen one is unplugged.</summary>
@@ -253,10 +282,11 @@ public partial class PillWindow : Window, IPillNotifier
         return Math.Clamp(shift, -room, room);
     }
 
-    // ───────────── Dragging along the top edge ─────────────
+    // ───────────── Dragging along the screen edge ─────────────
 
     // The pill can cover browser tabs, so it can be moved sideways by the pill itself or the panel header.
-    // Only horizontal: the panel opens downward and must stay attached to the top edge.
+    // It never floats: the panel opens away from an edge and must stay attached to it. Pulling it a good way
+    // toward the opposite edge (top or bottom) moves it there.
     // Shell holds the capture: the handle itself may fade out mid-drag (panel opening, flash ending).
 
     void OnDragHandleDown(object sender, MouseButtonEventArgs e)
@@ -268,7 +298,9 @@ public partial class PillWindow : Window, IPillNotifier
             return;
         }
         if (!Shell.CaptureMouse()) return;
-        _dragAnchor = PointToScreen(e.GetPosition(this)).X;
+        var press = PointToScreen(e.GetPosition(this));
+        _dragAnchor = press.X;
+        _dragAnchorY = press.Y;
         _dragStartOffset = CurrentOffset;
         _dragOffset = null;
         // Nothing may swap the view under the cursor while the button is held.
@@ -281,12 +313,40 @@ public partial class PillWindow : Window, IPillNotifier
     {
         if (_dragAnchor is not double anchor || e.LeftButton != MouseButtonState.Pressed) return;
         var dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
-        var delta = (PointToScreen(e.GetPosition(this)).X - anchor) / dpi;
+        var cursor = PointToScreen(e.GetPosition(this));
+        var delta = (cursor.X - anchor) / dpi;
+        var pull = cursor.Y - _dragAnchorY;
         // A small threshold so a plain click on the pill doesn't nudge it.
-        if (_dragOffset is null && Math.Abs(delta) < 4) return;
-        if (_dragOffset is null) Mouse.OverrideCursor = Cursors.SizeWE;
+        if (_dragOffset is null && Math.Abs(delta) < 4 && Math.Abs(pull) < 4 * dpi) return;
+        if (_dragOffset is null) Mouse.OverrideCursor = Cursors.SizeAll;
         _dragOffset = ClampOffset(_dragStartOffset + delta);
-        ApplyWindowSize();
+        // Pulled a fifth of the screen away from its edge: it moves to the other one. Measured from where the
+        // drag (or the last move) started, so dragging the header of a tall open panel sideways never trips it.
+        var away = AtBottom ? -pull : pull;
+        if (away > Display.Bounds.Height / 5.0)
+        {
+            _dragAnchorY = cursor.Y;
+            SavePillEdge(!AtBottom);
+        }
+        else
+        {
+            ApplyWindowSize();
+        }
+    }
+
+    void SavePillEdge(bool bottom)
+    {
+        AppServices.Settings.Current.PillAtBottom = bottom;
+        try
+        {
+            // Saving raises Changed, which lays the window out at the new edge.
+            AppServices.Settings.Save();
+        }
+        catch (Exception ex)
+        {
+            App.LogError(ex);
+            ApplyLayout();
+        }
     }
 
     void OnDragUp(object sender, MouseButtonEventArgs e)
@@ -504,12 +564,16 @@ public partial class PillWindow : Window, IPillNotifier
     }
 
     /// <summary>
-    /// Every frame repaints the whole layered window on the CPU; on a 165 Hz monitor an uncapped animation drew
-    /// ~155 frames a second. 60 looks just as smooth for a 340 ms move.
+    /// Frame rate of the open/close animations; null follows the monitor. They used to be capped at 60 to save
+    /// CPU (every frame repaints the whole layered window in software), but a 340 ms move is then just 20
+    /// frames, and on a 165 Hz monitor those land unevenly on refreshes and read as stutter. The burst is short,
+    /// so it runs at the full rate; only the endless animations (equalizer, character) stay capped.
     /// </summary>
+    static readonly int? ShellFrameRate = null;
+
     static DoubleAnimation Capped(DoubleAnimation animation)
     {
-        Timeline.SetDesiredFrameRate(animation, 60);
+        Timeline.SetDesiredFrameRate(animation, ShellFrameRate);
         return animation;
     }
 

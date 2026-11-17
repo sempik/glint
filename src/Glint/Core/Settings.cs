@@ -20,6 +20,8 @@ public sealed class AppSettings
     public double PillOffset { get; set; }
     /// <summary>Device name of the monitor the pill lives on (\\.\DISPLAY2); empty = the primary monitor.</summary>
     public string PillDisplay { get; set; } = "";
+    /// <summary>The pill sits at the bottom of the screen (above the taskbar) and its panel opens upward.</summary>
+    public bool PillAtBottom { get; set; }
 
     /// <summary>Id of the chosen preset (see ThemeService.Presets) or "custom".</summary>
     public string ThemePreset { get; set; } = "aurora";

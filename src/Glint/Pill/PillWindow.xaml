@@ -13,7 +13,8 @@
         so clicks outside the pill fall through to whatever is underneath.
     -->
     <!-- ShellShift moves the shell sideways inside the window when the pill is dragged near a screen edge. -->
-    <Grid VerticalAlignment="Top" HorizontalAlignment="Center">
+    <!-- Everything here is anchored to the top; ApplyEdge flips the anchors when the pill lives at the bottom. -->
+    <Grid x:Name="Stage" VerticalAlignment="Top" HorizontalAlignment="Center">
         <Grid.RenderTransform>
             <TranslateTransform x:Name="ShellShift"/>
         </Grid.RenderTransform>
@@ -165,7 +166,7 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <!-- Empty header space drags the pill along the top edge (buttons and tabs keep their clicks). -->
+                        <!-- Empty header space drags the pill along its screen edge (buttons and tabs keep their clicks). -->
                         <DockPanel x:Name="PanelHeader" LastChildFill="True" Background="Transparent">
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                                 <!-- Live indicator chips (mic, VPN, downloads...), filled in code; hover for details. -->

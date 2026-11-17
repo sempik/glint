@@ -46,6 +46,7 @@ public partial class SettingsPage
         ClickThroughToggle.IsChecked = s.ClickThrough;
         AutoUpdateToggle.IsChecked = s.AutoUpdateCheck;
         CurrencyToggle.IsChecked = s.CurrencyRates;
+        SyncEdgeButtons();
     }
 
     /// <summary>The background swatches show the shade that is actually used: dark tints, or their light twins.</summary>
@@ -109,6 +110,7 @@ public partial class SettingsPage
         SyncToggle(ClickThroughToggle, s.ClickThrough);
         SyncToggle(AutoUpdateToggle, s.AutoUpdateCheck);
         SyncToggle(CurrencyToggle, s.CurrencyRates);
+        SyncEdgeButtons();
         _loading = wasLoading;
         UpdateThemeSelection();
         UpdateTintDots();

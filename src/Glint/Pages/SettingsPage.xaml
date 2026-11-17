@@ -205,9 +205,21 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Style="{StaticResource RowLabel}" Text="Положение"/>
                         <TextBlock Grid.Column="1" Style="{StaticResource MutedText}" VerticalAlignment="Center" TextWrapping="Wrap"
-                                   Text="Перетащите пилюлю или шапку панели вдоль верха экрана; двойной клик — вернуть в центр"/>
+                                   Text="Перетащите пилюлю или шапку панели вдоль края экрана; двойной клик — вернуть в центр"/>
                         <Button Grid.Column="2" Style="{StaticResource GhostButton}" Margin="8,0,0,0" VerticalAlignment="Center"
                                 Content="По центру" Click="CenterPill_Click"/>
+                    </Grid>
+                    <!-- Top or bottom of the screen, filled in code (BuildEdgeButtons) -->
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="190"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource RowLabel}" Text="Край экрана"/>
+                        <WrapPanel x:Name="EdgePanel" Grid.Column="1" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="2" Style="{StaticResource MutedText}" Margin="10,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap"
+                                   Text="Или потяните пилюлю вниз либо вверх — она переедет сама"/>
                     </Grid>
                     <!-- Monitor picker, filled in code from Displays.All -->
                     <Grid Margin="0,12,0,0">
@@ -315,7 +327,7 @@
                               Checked="BehaviorToggle_Changed" Unchecked="BehaviorToggle_Changed">
                         <StackPanel>
                             <TextBlock Text="Автоскрытие"/>
-                            <TextBlock Style="{StaticResource IndicatorHint}" Text="Пилюля уезжает за верхний край, остаётся тонкая полоска. Наведите на неё — пилюля вернётся; уведомления тоже её показывают"/>
+                            <TextBlock Style="{StaticResource IndicatorHint}" Text="Пилюля уезжает за край экрана, остаётся тонкая полоска. Наведите на неё — пилюля вернётся; уведомления тоже её показывают"/>
                         </StackPanel>
                     </CheckBox>
                     <CheckBox x:Name="ClickThroughToggle" Style="{StaticResource ToggleSwitch}" Margin="0,12,0,0"

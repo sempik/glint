@@ -43,6 +43,7 @@ public partial class SettingsPage : UserControl
         _themeDebounce.Tick += (_, _) => { _themeDebounce.Stop(); ThemeService.Apply(S); };
         BuildThemeControls();
         BuildThemeModeButtons();
+        BuildEdgeButtons();
         BuildCaptureControls();
         BuildWeatherControls();
         BuildVoiceControls();
@@ -440,6 +441,40 @@ public partial class SettingsPage : UserControl
         S.PillOffset = 0;
         _saveDebounce.Stop();
         Save();
+    }
+
+    readonly List<(bool Bottom, RadioButton Button)> _edgeButtons = new();
+
+    void BuildEdgeButtons()
+    {
+        foreach (var (bottom, name) in new[] { (false, "Сверху"), (true, "Снизу") })
+        {
+            var button = new RadioButton
+            {
+                Style = (Style)FindResource("TabButton"),
+                GroupName = "PillEdge",
+                Content = new TextBlock { Text = name, FontSize = 12 },
+                ToolTip = bottom ? "Над панелью задач; панель раскрывается вверх" : null,
+            };
+            // Same foreground fix as the monitor buttons below.
+            ((TextBlock)button.Content).SetBinding(TextBlock.ForegroundProperty, new System.Windows.Data.Binding(nameof(Foreground)) { Source = button });
+            button.Checked += (_, _) =>
+            {
+                if (_loading || S.PillAtBottom == bottom) return;
+                S.PillAtBottom = bottom;
+                _saveDebounce.Stop();
+                Save();
+            };
+            EdgePanel.Children.Add(button);
+            _edgeButtons.Add((bottom, button));
+        }
+    }
+
+    /// <summary>Also called when the pill was dragged to the other edge while this page is open.</summary>
+    void SyncEdgeButtons()
+    {
+        foreach (var (bottom, button) in _edgeButtons)
+            if ((button.IsChecked == true) != (bottom == S.PillAtBottom)) button.IsChecked = bottom == S.PillAtBottom;
     }
 
     // The monitor list is rebuilt whenever the page appears and when a monitor is plugged in or out.

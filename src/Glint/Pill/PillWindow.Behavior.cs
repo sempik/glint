@@ -10,7 +10,7 @@ using Glint.Pages;
 namespace Glint.Pill;
 
 /// <summary>
-/// Behaviour options from Настройки → Поведение: auto-hide (the resting pill slides up behind the top edge,
+/// Behaviour options from Настройки → Поведение: auto-hide (the resting pill slides behind its screen edge,
 /// leaving a thin strip) and click-through (the collapsed pill lets clicks pass; Ctrl over it brings it back).
 /// Also keeps the tab strip inside the panel when header chips crowd it.
 /// </summary>
@@ -82,7 +82,9 @@ public partial class PillWindow
         if (_tucked) SetTucked(false);
     }
 
-    double TuckedY => -((Shell.Margin.Top + PillHeight) * _scale - TuckStrip);
+    // Toward the edge the pill sits at: up behind the top of the screen, or down behind the window's bottom
+    // edge, which lies on the taskbar's top.
+    double TuckedY => ((EdgeGap + PillHeight) * _scale - TuckStrip) * (AtBottom ? 1 : -1);
 
     void SetTucked(bool tucked)
     {
@@ -91,9 +93,8 @@ public partial class PillWindow
         {
             EasingFunction = new CubicEase { EasingMode = tucked ? EasingMode.EaseIn : EasingMode.EaseOut },
         };
-        // Only the small resting window moves, but every frame is still a software-rendered layered update.
-        Timeline.SetDesiredFrameRate(anim, 30);
-        ShellShift.BeginAnimation(TranslateTransform.YProperty, anim);
+        // A short one-off slide: full frame rate, like the open/close animations (see ShellFrameRate).
+        ShellShift.BeginAnimation(TranslateTransform.YProperty, Capped(anim));
         // Nobody sees the equalizer (or the agent dot breathing, or the character) behind the edge.
         UpdateMedia();
         UpdateAgentPulse();
